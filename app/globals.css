@@ -1,26 +1,712 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ==========================================================================
+   SISTEMA DE TOKENS SEMÁNTICOS Y TEMAS DINÁMICOS
+   Default: Rosado Armónico (data-theme="rose" + data-mode="light")
+   ========================================================================== */
+
+:root,
+[data-theme="rose"],
+[data-theme="rose"][data-mode="light"] {
+  --background: #fff8fa;
+  --surface: #fdf0f5;
+  --card: #ffffff;
+  --card-hover: #fff2f7;
+  --foreground: #2b1822;
+  --muted: #f8e7ee;
+  --muted-foreground: #7a5a6b;
+  --border: #f0d5e1;
+
+  --primary: #d94680;
+  --primary-hover: #c0346d;
+  --primary-foreground: #ffffff;
+  --primary-soft: #fce7f1;
+
+  --secondary: #2f9e84;
+  --secondary-foreground: #ffffff;
+  --secondary-soft: #e3f6f0;
+
+  --accent: #e67a56;
+  --accent-foreground: #ffffff;
+  --accent-soft: #ffede6;
+
+  --success: #1f9d6b;
+  --success-soft: #e2f7ee;
+  --warning: #c87419;
+  --warning-soft: #fef2e2;
+  --danger: #d93848;
+  --danger-soft: #fde8eb;
+
+  /* Categorías personalizables + Pagos */
+  --cat-bills: #c87419;
+  --cat-bills-soft: #fef2e2;
+  --cat-1: #3b6fd8;
+  --cat-1-soft: #eaf0ff;
+  --cat-2: #d94680;
+  --cat-2-soft: #fce7f1;
+  --cat-3: #2f9e84;
+  --cat-3-soft: #e3f6f0;
+  --cat-4: #e67a56;
+  --cat-4-soft: #ffede6;
+  --cat-5: #8b5cf6;
+  --cat-5-soft: #f1ebff;
+  --cat-6: #0d9488;
+  --cat-6-soft: #e3f7f5;
+  --cat-7: #b45399;
+  --cat-7-soft: #f9eaf5;
 }
+
+[data-theme="rose"][data-mode="dark"] {
+  --background: #161014;
+  --surface: #1f161c;
+  --card: #281d24;
+  --card-hover: #33252e;
+  --foreground: #faf0f4;
+  --muted: #34262f;
+  --muted-foreground: #c4a5b5;
+  --border: #43313c;
+
+  --primary: #f472b6;
+  --primary-hover: #ec4899;
+  --primary-foreground: #240d19;
+  --primary-soft: #451c31;
+
+  --secondary: #5eead4;
+  --secondary-foreground: #0c2924;
+  --secondary-soft: #143630;
+
+  --accent: #fdba74;
+  --accent-foreground: #2c1608;
+  --accent-soft: #3d2415;
+
+  --success: #34d399;
+  --success-soft: #133528;
+  --warning: #fbbf24;
+  --warning-soft: #3b2b12;
+  --danger: #fb7185;
+  --danger-soft: #421a22;
+
+  --cat-bills: #fbbf24;
+  --cat-bills-soft: #3b2b12;
+  --cat-1: #7cb0ff;
+  --cat-1-soft: #1b2a47;
+  --cat-2: #f472b6;
+  --cat-2-soft: #451c31;
+  --cat-3: #5eead4;
+  --cat-3-soft: #143630;
+  --cat-4: #fdba74;
+  --cat-4-soft: #3d2415;
+  --cat-5: #c4b5fd;
+  --cat-5-soft: #2e2347;
+  --cat-6: #2dd4bf;
+  --cat-6-soft: #133434;
+  --cat-7: #f0abfc;
+  --cat-7-soft: #3d2042;
+}
+
+/* ==========================================================================
+   TEMA: SALVIA BOTÁNICA (sage)
+   ========================================================================== */
+
+[data-theme="sage"][data-mode="light"] {
+  --background: #f7faf8;
+  --surface: #edf4ef;
+  --card: #ffffff;
+  --card-hover: #f2f8f4;
+  --foreground: #192822;
+  --muted: #e3eee7;
+  --muted-foreground: #556f63;
+  --border: #cfe0d5;
+
+  --primary: #2f7d62;
+  --primary-hover: #256850;
+  --primary-foreground: #ffffff;
+  --primary-soft: #dff2ea;
+
+  --secondary: #c96b4b;
+  --secondary-foreground: #ffffff;
+  --secondary-soft: #fbeae4;
+
+  --accent: #b88b3a;
+  --accent-foreground: #ffffff;
+  --accent-soft: #faf1de;
+
+  --success: #1f8a5b;
+  --success-soft: #dff4ea;
+  --warning: #c2781a;
+  --warning-soft: #fdf1df;
+  --danger: #cc3e49;
+  --danger-soft: #fbe7e9;
+
+  --cat-bills: #c2781a;
+  --cat-bills-soft: #fdf1df;
+  --cat-1: #2f6f9f;
+  --cat-1-soft: #e4f0fa;
+  --cat-2: #c96b4b;
+  --cat-2-soft: #fbeae4;
+  --cat-3: #2f7d62;
+  --cat-3-soft: #dff2ea;
+  --cat-4: #b88b3a;
+  --cat-4-soft: #faf1de;
+  --cat-5: #7d5ba6;
+  --cat-5-soft: #efeaf8;
+  --cat-6: #278a88;
+  --cat-6-soft: #e0f4f3;
+  --cat-7: #b85378;
+  --cat-7-soft: #fae9f0;
+}
+
+[data-theme="sage"][data-mode="dark"] {
+  --background: #101714;
+  --surface: #16201c;
+  --card: #1d2a24;
+  --card-hover: #24342d;
+  --foreground: #edf6f1;
+  --muted: #24352e;
+  --muted-foreground: #9cb8ab;
+  --border: #30453c;
+
+  --primary: #52b788;
+  --primary-hover: #40a577;
+  --primary-foreground: #0d2118;
+  --primary-soft: #1a3b2d;
+
+  --secondary: #f09575;
+  --secondary-foreground: #2b130b;
+  --secondary-soft: #3d2219;
+
+  --accent: #e9c46a;
+  --accent-foreground: #261e09;
+  --accent-soft: #3a3016;
+
+  --success: #4ade80;
+  --success-soft: #153522;
+  --warning: #fbbf24;
+  --warning-soft: #3b2c12;
+  --danger: #fb7185;
+  --danger-soft: #401a21;
+
+  --cat-bills: #fbbf24;
+  --cat-bills-soft: #3b2c12;
+  --cat-1: #7cc4fa;
+  --cat-1-soft: #182c3d;
+  --cat-2: #f09575;
+  --cat-2-soft: #3d2219;
+  --cat-3: #52b788;
+  --cat-3-soft: #1a3b2d;
+  --cat-4: #e9c46a;
+  --cat-4-soft: #3a3016;
+  --cat-5: #c4b5fd;
+  --cat-5-soft: #2b2342;
+  --cat-6: #5eead4;
+  --cat-6-soft: #143633;
+  --cat-7: #f48fb1;
+  --cat-7-soft: #3e1e2c;
+}
+
+/* ==========================================================================
+   TEMA: OCÉANO SERENO (ocean)
+   ========================================================================== */
+
+[data-theme="ocean"][data-mode="light"] {
+  --background: #f5f9ff;
+  --surface: #ebf3fe;
+  --card: #ffffff;
+  --card-hover: #f1f6ff;
+  --foreground: #142238;
+  --muted: #e1ecfc;
+  --muted-foreground: #526887;
+  --border: #ccddf5;
+
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-foreground: #ffffff;
+  --primary-soft: #e2ecff;
+
+  --secondary: #0f9d95;
+  --secondary-foreground: #ffffff;
+  --secondary-soft: #dff7f5;
+
+  --accent: #e86262;
+  --accent-foreground: #ffffff;
+  --accent-soft: #feeaea;
+
+  --success: #169463;
+  --success-soft: #e0f5ec;
+  --warning: #cc7914;
+  --warning-soft: #fef2e0;
+  --danger: #d63649;
+  --danger-soft: #fde8eb;
+
+  --cat-bills: #cc7914;
+  --cat-bills-soft: #fef2e0;
+  --cat-1: #2563eb;
+  --cat-1-soft: #e2ecff;
+  --cat-2: #e86262;
+  --cat-2-soft: #feeaea;
+  --cat-3: #0f9d95;
+  --cat-3-soft: #dff7f5;
+  --cat-4: #7c5dfa;
+  --cat-4-soft: #eeeaff;
+  --cat-5: #2b8a5b;
+  --cat-5-soft: #e1f5eb;
+  --cat-6: #c2418a;
+  --cat-6-soft: #fce8f3;
+  --cat-7: #0284c7;
+  --cat-7-soft: #e0f2fe;
+}
+
+[data-theme="ocean"][data-mode="dark"] {
+  --background: #0d1420;
+  --surface: #131d2e;
+  --card: #19263c;
+  --card-hover: #21314c;
+  --foreground: #edf4ff;
+  --muted: #213049;
+  --muted-foreground: #9ab0d1;
+  --border: #2c4060;
+
+  --primary: #60a5fa;
+  --primary-hover: #3b82f6;
+  --primary-foreground: #0b192e;
+  --primary-soft: #1a3257;
+
+  --secondary: #2dd4bf;
+  --secondary-foreground: #0a2624;
+  --secondary-soft: #133836;
+
+  --accent: #fca5a5;
+  --accent-foreground: #2e1111;
+  --accent-soft: #401e22;
+
+  --success: #34d399;
+  --success-soft: #133528;
+  --warning: #fbbf24;
+  --warning-soft: #3b2c12;
+  --danger: #fb7185;
+  --danger-soft: #421a22;
+
+  --cat-bills: #fbbf24;
+  --cat-bills-soft: #3b2c12;
+  --cat-1: #60a5fa;
+  --cat-1-soft: #1a3257;
+  --cat-2: #fca5a5;
+  --cat-2-soft: #401e22;
+  --cat-3: #2dd4bf;
+  --cat-3-soft: #133836;
+  --cat-4: #c4b5fd;
+  --cat-4-soft: #2b2349;
+  --cat-5: #6ee7b7;
+  --cat-5-soft: #15372b;
+  --cat-6: #f472b6;
+  --cat-6-soft: #421c33;
+  --cat-7: #38bdf8;
+  --cat-7-soft: #143247;
+}
+
+/* ==========================================================================
+   TEMA: LAVANDA SUAVE (lavender)
+   ========================================================================== */
+
+[data-theme="lavender"][data-mode="light"] {
+  --background: #faf8ff;
+  --surface: #f2edfe;
+  --card: #ffffff;
+  --card-hover: #f7f3ff;
+  --foreground: #231934;
+  --muted: #eae2fc;
+  --muted-foreground: #685985;
+  --border: #dcd0f5;
+
+  --primary: #7c5cfa;
+  --primary-hover: #6744ee;
+  --primary-foreground: #ffffff;
+  --primary-soft: #ede8ff;
+
+  --secondary: #269c82;
+  --secondary-foreground: #ffffff;
+  --secondary-soft: #e0f5f0;
+
+  --accent: #d88d2c;
+  --accent-foreground: #ffffff;
+  --accent-soft: #fdf2e0;
+
+  --success: #1f9566;
+  --success-soft: #e1f6ed;
+  --warning: #cc7a18;
+  --warning-soft: #fef2e0;
+  --danger: #d63851;
+  --danger-soft: #fde8ec;
+
+  --cat-bills: #cc7a18;
+  --cat-bills-soft: #fef2e0;
+  --cat-1: #3b6fd8;
+  --cat-1-soft: #e8efff;
+  --cat-2: #d64b8d;
+  --cat-2-soft: #fce8f2;
+  --cat-3: #269c82;
+  --cat-3-soft: #e0f5f0;
+  --cat-4: #7c5cfa;
+  --cat-4-soft: #ede8ff;
+  --cat-5: #d88d2c;
+  --cat-5-soft: #fdf2e0;
+  --cat-6: #0e8fa8;
+  --cat-6-soft: #e0f4f8;
+  --cat-7: #a855f7;
+  --cat-7-soft: #f3e8ff;
+}
+
+[data-theme="lavender"][data-mode="dark"] {
+  --background: #13101d;
+  --surface: #1b1629;
+  --card: #241e36;
+  --card-hover: #2d2642;
+  --foreground: #f4f0ff;
+  --muted: #2e2744;
+  --muted-foreground: #b5a7d1;
+  --border: #3d3459;
+
+  --primary: #a78bfa;
+  --primary-hover: #8b5cf6;
+  --primary-foreground: #1b1133;
+  --primary-soft: #312454;
+
+  --secondary: #5eead4;
+  --secondary-foreground: #0b2622;
+  --secondary-soft: #143631;
+
+  --accent: #fcd34d;
+  --accent-foreground: #292008;
+  --accent-soft: #3d3115;
+
+  --success: #34d399;
+  --success-soft: #133528;
+  --warning: #fbbf24;
+  --warning-soft: #3b2c12;
+  --danger: #fb7185;
+  --danger-soft: #421a22;
+
+  --cat-bills: #fbbf24;
+  --cat-bills-soft: #3b2c12;
+  --cat-1: #7cb0ff;
+  --cat-1-soft: #1b2c4c;
+  --cat-2: #f472b6;
+  --cat-2-soft: #431c32;
+  --cat-3: #5eead4;
+  --cat-3-soft: #143631;
+  --cat-4: #a78bfa;
+  --cat-4-soft: #312454;
+  --cat-5: #fcd34d;
+  --cat-5-soft: #3d3115;
+  --cat-6: #38bdf8;
+  --cat-6-soft: #143247;
+  --cat-7: #e879f9;
+  --cat-7-soft: #3d1e47;
+}
+
+/* ==========================================================================
+   TEMA: ATARDECER CÁLIDO (sunset)
+   ========================================================================== */
+
+[data-theme="sunset"][data-mode="light"] {
+  --background: #fffaf5;
+  --surface: #fdf1e6;
+  --card: #ffffff;
+  --card-hover: #fff4eb;
+  --foreground: #2d1c14;
+  --muted: #f7e6d8;
+  --muted-foreground: #7d5f50;
+  --border: #eed4c0;
+
+  --primary: #d96030;
+  --primary-hover: #bf4e21;
+  --primary-foreground: #ffffff;
+  --primary-soft: #feeae0;
+
+  --secondary: #1e8a94;
+  --secondary-foreground: #ffffff;
+  --secondary-soft: #dff4f6;
+
+  --accent: #d94674;
+  --accent-foreground: #ffffff;
+  --accent-soft: #fce7ee;
+
+  --success: #1f9466;
+  --success-soft: #e1f5ec;
+  --warning: #c47614;
+  --warning-soft: #fef1dc;
+  --danger: #d43546;
+  --danger-soft: #fde8ea;
+
+  --cat-bills: #c47614;
+  --cat-bills-soft: #fef1dc;
+  --cat-1: #1e8a94;
+  --cat-1-soft: #dff4f6;
+  --cat-2: #d94674;
+  --cat-2-soft: #fce7ee;
+  --cat-3: #2c8f68;
+  --cat-3-soft: #e1f5ec;
+  --cat-4: #d96030;
+  --cat-4-soft: #feeae0;
+  --cat-5: #7d5bc2;
+  --cat-5-soft: #efeaf9;
+  --cat-6: #366fd1;
+  --cat-6-soft: #e8f0fe;
+  --cat-7: #b8588f;
+  --cat-7-soft: #f9eaf3;
+}
+
+[data-theme="sunset"][data-mode="dark"] {
+  --background: #18110e;
+  --surface: #221814;
+  --card: #2c201a;
+  --card-hover: #382921;
+  --foreground: #fdf2ea;
+  --muted: #382922;
+  --muted-foreground: #c7aa9b;
+  --border: #4a372e;
+
+  --primary: #fb923c;
+  --primary-hover: #f97316;
+  --primary-foreground: #2b1407;
+  --primary-soft: #472613;
+
+  --secondary: #38bdf8;
+  --secondary-foreground: #0a2230;
+  --secondary-soft: #153242;
+
+  --accent: #f472b6;
+  --accent-foreground: #290e1c;
+  --accent-soft: #441b30;
+
+  --success: #34d399;
+  --success-soft: #133528;
+  --warning: #fbbf24;
+  --warning-soft: #3d2d12;
+  --danger: #fb7185;
+  --danger-soft: #421a22;
+
+  --cat-bills: #fbbf24;
+  --cat-bills-soft: #3d2d12;
+  --cat-1: #38bdf8;
+  --cat-1-soft: #153242;
+  --cat-2: #f472b6;
+  --cat-2-soft: #441b30;
+  --cat-3: #5eead4;
+  --cat-3-soft: #143631;
+  --cat-4: #fb923c;
+  --cat-4-soft: #472613;
+  --cat-5: #c4b5fd;
+  --cat-5-soft: #2e2347;
+  --cat-6: #7cb0ff;
+  --cat-6-soft: #1b2c4c;
+  --cat-7: #f0abfc;
+  --cat-7-soft: #3e2044;
+}
+
+/* ==========================================================================
+   TEMA: GRAFITO MINIMAL (minimal)
+   ========================================================================== */
+
+[data-theme="minimal"][data-mode="light"] {
+  --background: #f8f9fb;
+  --surface: #f0f2f6;
+  --card: #ffffff;
+  --card-hover: #f4f6f9;
+  --foreground: #181c24;
+  --muted: #e6e9f0;
+  --muted-foreground: #5c6576;
+  --border: #d8dde6;
+
+  --primary: #2d3748;
+  --primary-hover: #1e2633;
+  --primary-foreground: #ffffff;
+  --primary-soft: #e6e9f0;
+
+  --secondary: #4f5bd5;
+  --secondary-foreground: #ffffff;
+  --secondary-soft: #eaecfc;
+
+  --accent: #10946c;
+  --accent-foreground: #ffffff;
+  --accent-soft: #e1f5ee;
+
+  --success: #169362;
+  --success-soft: #e0f5ec;
+  --warning: #c67814;
+  --warning-soft: #fef2df;
+  --danger: #d43647;
+  --danger-soft: #fde8ea;
+
+  --cat-bills: #c67814;
+  --cat-bills-soft: #fef2df;
+  --cat-1: #4f5bd5;
+  --cat-1-soft: #eaecfc;
+  --cat-2: #d0487e;
+  --cat-2-soft: #fce8f0;
+  --cat-3: #10946c;
+  --cat-3-soft: #e1f5ee;
+  --cat-4: #d66838;
+  --cat-4-soft: #fdece4;
+  --cat-5: #7c58cc;
+  --cat-5-soft: #efeaf9;
+  --cat-6: #0e86a8;
+  --cat-6-soft: #e0f3f8;
+  --cat-7: #475569;
+  --cat-7-soft: #eaedf2;
+}
+
+[data-theme="minimal"][data-mode="dark"] {
+  --background: #101216;
+  --surface: #171a21;
+  --card: #1f232c;
+  --card-hover: #272c37;
+  --foreground: #f2f4f8;
+  --muted: #282d38;
+  --muted-foreground: #9ca5b7;
+  --border: #343b49;
+
+  --primary: #e2e8f0;
+  --primary-hover: #cbd5e1;
+  --primary-foreground: #12161e;
+  --primary-soft: #2c3340;
+
+  --secondary: #818cf8;
+  --secondary-foreground: #141736;
+  --secondary-soft: #23274a;
+
+  --accent: #34d399;
+  --accent-foreground: #0b241b;
+  --accent-soft: #13362a;
+
+  --success: #34d399;
+  --success-soft: #13362a;
+  --warning: #fbbf24;
+  --warning-soft: #3b2c12;
+  --danger: #fb7185;
+  --danger-soft: #421a22;
+
+  --cat-bills: #fbbf24;
+  --cat-bills-soft: #3b2c12;
+  --cat-1: #818cf8;
+  --cat-1-soft: #23274a;
+  --cat-2: #f472b6;
+  --cat-2-soft: #431c32;
+  --cat-3: #34d399;
+  --cat-3-soft: #13362a;
+  --cat-4: #fb923c;
+  --cat-4-soft: #452513;
+  --cat-5: #c4b5fd;
+  --cat-5-soft: #2d2347;
+  --cat-6: #38bdf8;
+  --cat-6-soft: #143145;
+  --cat-7: #cbd5e1;
+  --cat-7-soft: #2c3340;
+}
+
+/* ==========================================================================
+   EXPOSICIÓN DE TOKENS EN TAILWIND CSS v4
+   ========================================================================== */
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-card-hover: var(--card-hover);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary-soft: var(--secondary-soft);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --color-cat-bills: var(--cat-bills);
+  --color-cat-bills-soft: var(--cat-bills-soft);
+  --color-cat-1: var(--cat-1);
+  --color-cat-1-soft: var(--cat-1-soft);
+  --color-cat-2: var(--cat-2);
+  --color-cat-2-soft: var(--cat-2-soft);
+  --color-cat-3: var(--cat-3);
+  --color-cat-3-soft: var(--cat-3-soft);
+  --color-cat-4: var(--cat-4);
+  --cat-4-soft: var(--cat-4-soft);
+  --color-cat-5: var(--cat-5);
+  --cat-5-soft: var(--cat-5-soft);
+  --color-cat-6: var(--cat-6);
+  --cat-6-soft: var(--cat-6-soft);
+  --color-cat-7: var(--cat-7);
+  --color-cat-7-soft: var(--cat-7-soft);
+
+  --font-sans: var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ==========================================================================
+   DENSIDAD DE PANTALLA (Escritorio / Compacto / Pantalla Inteligente 21.5")
+   ========================================================================== */
+
+html[data-density="compact"] {
+  font-size: 14.5px;
+}
+
+html[data-density="comfortable"] {
+  font-size: 16px;
+}
+
+html[data-density="wall"] {
+  font-size: 18px;
+}
+
+/* ==========================================================================
+   ESTILOS BASE Y SCROLLBARS TEMÁTICOS
+   ========================================================================== */
+
+* {
+  border-color: var(--border);
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+}
+
+/* Scrollbar sutil usando tokens */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted-foreground);
 }
