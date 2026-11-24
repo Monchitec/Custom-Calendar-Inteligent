@@ -41,19 +41,19 @@
   --cat-bills: #c87419;
   --cat-bills-soft: #fef2e2;
   --cat-1: #3b6fd8;
-  --cat-1-soft: #eaf0ff;
+  --cat-1-soft: #e2ecff;
   --cat-2: #d94680;
   --cat-2-soft: #fce7f1;
   --cat-3: #2f9e84;
-  --cat-3-soft: #e3f6f0;
+  --cat-3-soft: #dcf5ec;
   --cat-4: #e67a56;
-  --cat-4-soft: #ffede6;
+  --cat-4-soft: #ffe6dc;
   --cat-5: #8b5cf6;
-  --cat-5-soft: #f1ebff;
+  --cat-5-soft: #ebe2ff;
   --cat-6: #0d9488;
-  --cat-6-soft: #e3f7f5;
+  --cat-6-soft: #daf4f2;
   --cat-7: #b45399;
-  --cat-7-soft: #f9eaf5;
+  --cat-7-soft: #f6e0f0;
 }
 
 [data-theme="rose"][data-mode="dark"] {
@@ -647,11 +647,11 @@
   --color-cat-3: var(--cat-3);
   --color-cat-3-soft: var(--cat-3-soft);
   --color-cat-4: var(--cat-4);
-  --cat-4-soft: var(--cat-4-soft);
+  --color-cat-4-soft: var(--cat-4-soft);
   --color-cat-5: var(--cat-5);
-  --cat-5-soft: var(--cat-5-soft);
+  --color-cat-5-soft: var(--cat-5-soft);
   --color-cat-6: var(--cat-6);
-  --cat-6-soft: var(--cat-6-soft);
+  --color-cat-6-soft: var(--cat-6-soft);
   --color-cat-7: var(--cat-7);
   --color-cat-7-soft: var(--cat-7-soft);
 
@@ -679,8 +679,10 @@ html[data-density="wall"] {
    ESTILOS BASE Y SCROLLBARS TEMÁTICOS
    ========================================================================== */
 
-* {
-  border-color: var(--border);
+@layer base {
+  * {
+    border-color: var(--border);
+  }
 }
 
 body {

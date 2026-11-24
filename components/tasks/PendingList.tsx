@@ -59,22 +59,24 @@ export function PendingList() {
     });
   }, [tasks, statusFilter, profileFilter]);
 
+  const todayKey = clock.ready ? clock.todayKey : "";
+  const effectiveDueDate = dueDate || todayKey;
+
   const handleQuickCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
+    const resolvedDate = dueDate || todayKey || undefined;
     addTask({
       title: title.trim(),
       completed: false,
       profileId: effectiveProfileId,
       priority,
-      dueDate: dueDate || undefined,
-      showOnCalendar: Boolean(dueDate),
+      dueDate: resolvedDate,
+      showOnCalendar: Boolean(resolvedDate),
     });
     setTitle("");
     setDueDate("");
   };
-
-  const todayKey = clock.ready ? clock.todayKey : "";
 
   return (
     <section className="border-border bg-card rounded-3xl border p-5 shadow-xs">
@@ -148,9 +150,9 @@ export function PendingList() {
         </select>
         <input
           type="date"
-          value={dueDate}
+          value={effectiveDueDate}
           onChange={(e) => setDueDate(e.target.value)}
-          aria-label="Fecha límite opcional"
+          aria-label="Fecha límite"
           className="border-border bg-card text-foreground focus:border-primary min-h-10 rounded-xl border px-2.5 text-xs tabular-nums focus:outline-none sm:col-span-2"
         />
         <Button

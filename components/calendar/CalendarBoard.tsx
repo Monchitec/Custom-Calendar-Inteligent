@@ -72,7 +72,7 @@ function matchesCalendarFilter(
 export function CalendarBoard() {
   const clock = useClock();
   const { config, toggleMode } = useTheme();
-  const { hydrated, profiles, events, bills, tasks, openQuickAdd } =
+  const { hydrated, profiles, events, bills, tasks, checklists, openQuickAdd } =
     useCalendarData();
 
   const [view, setView] = useState<CalendarView>("month");
@@ -155,6 +155,8 @@ export function CalendarBoard() {
       events,
       bills,
       tasks,
+      checklists,
+      todayKey,
       profiles: visibleAllProfiles,
       rangeStartKey: effectiveStart,
       rangeEndKey: effectiveEnd,
@@ -166,6 +168,8 @@ export function CalendarBoard() {
     events,
     bills,
     tasks,
+    checklists,
+    todayKey,
     profiles,
     rangeStartKey,
     rangeEndKey,

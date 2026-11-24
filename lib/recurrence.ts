@@ -4,7 +4,7 @@ import type {
   Profile,
   ProjectedCalendarItem,
 } from "@/types/calendar";
-import type { TaskItem } from "@/types/tasks";
+import type { Checklist, TaskItem } from "@/types/tasks";
 import {
   addDays,
   clampDayOfMonth,
@@ -303,6 +303,8 @@ export function buildProjectedCalendarItems(params: {
   events: CalendarEvent[];
   bills: RecurringBill[];
   tasks: TaskItem[];
+  checklists?: Checklist[];
+  todayKey?: string;
   profiles: Profile[];
   rangeStartKey: string;
   rangeEndKey: string;
@@ -313,6 +315,8 @@ export function buildProjectedCalendarItems(params: {
     events,
     bills,
     tasks,
+    checklists = [],
+    todayKey,
     profiles,
     rangeStartKey,
     rangeEndKey,
@@ -395,6 +399,35 @@ export function buildProjectedCalendarItems(params: {
         completed: task.completed,
         notes: task.notes,
       });
+    }
+
+    // Proyectar rutinas diarias en el día de hoy si hoy cae dentro del rango visible
+    if (todayKey && todayKey >= rangeStartKey && todayKey <= rangeEndKey) {
+      for (const cl of checklists) {
+        if (cl.resetSchedule !== "daily") continue;
+        const profile = profileMap.get(cl.profileId);
+        if (profile && !profile.visible) continue;
+        const totalSteps = cl.steps.length;
+        const doneSteps = cl.steps.filter((s) => s.done).length;
+        const allDone = totalSteps > 0 && doneSteps === totalSteps;
+
+        items.push({
+          id: `checklist:${cl.id}:${todayKey}`,
+          source: "task",
+          sourceId: cl.id,
+          title:
+            totalSteps > 0
+              ? `${cl.title} (${doneSteps}/${totalSteps})`
+              : cl.title,
+          date: todayKey,
+          allDay: true,
+          colorSlot: profile?.colorSlot ?? "cat-6",
+          profileId: cl.profileId,
+          profileLabel: profile?.name ?? "Rutina",
+          completed: allDone,
+          notes: cl.description,
+        });
+      }
     }
   }
 
