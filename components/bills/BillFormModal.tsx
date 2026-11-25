@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { useCalendarData } from "@/components/shared/providers/CalendarDataProvider";
 import { Button } from "@/components/shared/ui/Button";
 import { Modal } from "@/components/shared/ui/Modal";
@@ -8,7 +9,7 @@ import { Switch } from "@/components/shared/ui/Switch";
 import { VisualIconPicker } from "@/components/shared/ui/VisualIconPicker";
 import { cn } from "@/lib/cn";
 import { toDateKey } from "@/lib/dates";
-import type { BillFrequency, RecurringBill } from "@/types/bills";
+import type { BillFrequency, BillKind, RecurringBill } from "@/types/bills";
 
 const INPUT_CLASS =
   "w-full rounded-xl bg-background border border-border px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25";
@@ -18,19 +19,22 @@ const LABEL_CLASS =
 interface BillFormModalProps {
   open: boolean;
   editingBill: RecurringBill | null;
+  defaultKind?: BillKind;
   onClose: () => void;
 }
 
 export function BillFormModal({
   open,
   editingBill,
+  defaultKind = "expense",
   onClose,
 }: BillFormModalProps) {
   if (!open) return null;
   return (
     <BillFormModalInner
-      key={editingBill?.id ?? "new"}
+      key={`${editingBill?.id ?? "new"}:${editingBill?.kind ?? defaultKind}`}
       editingBill={editingBill}
+      defaultKind={defaultKind}
       onClose={onClose}
     />
   );
@@ -38,13 +42,16 @@ export function BillFormModal({
 
 function BillFormModalInner({
   editingBill,
+  defaultKind,
   onClose,
 }: {
   editingBill: RecurringBill | null;
+  defaultKind: BillKind;
   onClose: () => void;
 }) {
   const { addBill, updateBill, preferences } = useCalendarData();
 
+  const [kind, setKind] = useState<BillKind>(editingBill?.kind ?? defaultKind);
   const [name, setName] = useState(editingBill?.name ?? "");
   const [provider, setProvider] = useState(editingBill?.provider ?? "");
   const [amount, setAmount] = useState(
@@ -60,9 +67,12 @@ function BillFormModalInner({
   const [reminderDaysBefore, setReminderDaysBefore] = useState(
     String(editingBill?.reminderDaysBefore ?? preferences.defaultBillLeadDays),
   );
+  const [paymentUrl, setPaymentUrl] = useState(editingBill?.paymentUrl ?? "");
   const [notes, setNotes] = useState(editingBill?.notes ?? "");
   const [visualIcon, setVisualIcon] = useState(editingBill?.visualIcon ?? "");
   const [error, setError] = useState("");
+
+  const isIncome = kind === "income";
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,6 +83,7 @@ function BillFormModalInner({
     }
 
     const payload = {
+      kind,
       name: name.trim(),
       provider: provider.trim() || undefined,
       visualIcon: visualIcon || undefined,
@@ -81,8 +92,11 @@ function BillFormModalInner({
       dueDay: Math.min(31, Math.max(1, Number(dueDay) || 1)),
       startDate: editingBill?.startDate ?? toDateKey(new Date()),
       frequency,
-      autoPay,
-      reminderDaysBefore: Math.max(0, Number(reminderDaysBefore) || 0),
+      autoPay: isIncome ? false : autoPay,
+      reminderDaysBefore: isIncome
+        ? 0
+        : Math.max(0, Number(reminderDaysBefore) || 0),
+      paymentUrl: paymentUrl.trim() || undefined,
       notes: notes.trim() || undefined,
     };
 
@@ -98,45 +112,105 @@ function BillFormModalInner({
     <Modal
       open
       onClose={onClose}
-      title={editingBill ? "Editar pago recurrente" : "Nuevo pago del hogar"}
-      subtitle="Se proyectará automáticamente en tu calendario mensual con recordatorio"
+      title={
+        editingBill
+          ? isIncome
+            ? "Editar ingreso"
+            : "Editar pago recurrente"
+          : isIncome
+            ? "Nuevo ingreso"
+            : "Nuevo pago del hogar"
+      }
+      subtitle={
+        isIncome
+          ? "Registra sueldos, honorarios o ingresos extra para calcular tu balance mensual"
+          : "Se proyectará automáticamente en tu calendario mensual con recordatorio"
+      }
       footer={
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>
             Cancelar
           </Button>
           <Button type="submit" form="bill-form" variant="primary">
-            {editingBill ? "Guardar cambios" : "Registrar pago"}
+            {editingBill
+              ? "Guardar cambios"
+              : isIncome
+                ? "Registrar ingreso"
+                : "Registrar pago"}
           </Button>
         </div>
       }
     >
       <form id="bill-form" onSubmit={handleSubmit} className="space-y-4">
+        {/* Selector de tipo: Ingreso a la izquierda de Gasto / Pago */}
+        <div
+          role="group"
+          aria-label="Tipo de movimiento"
+          className="border-border bg-surface grid grid-cols-2 gap-1 rounded-2xl border p-1"
+        >
+          <button
+            type="button"
+            onClick={() => setKind("income")}
+            aria-pressed={isIncome}
+            className={cn(
+              "inline-flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-bold transition-all",
+              isIncome
+                ? "bg-success text-primary-foreground shadow-2xs"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <ArrowDownLeft className="h-4 w-4" />
+            Ingreso
+          </button>
+          <button
+            type="button"
+            onClick={() => setKind("expense")}
+            aria-pressed={!isIncome}
+            className={cn(
+              "inline-flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-bold transition-all",
+              !isIncome
+                ? "bg-primary text-primary-foreground shadow-2xs"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <ArrowUpRight className="h-4 w-4" />
+            Gasto / Pago
+          </button>
+        </div>
+
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="bf-name" className={LABEL_CLASS}>
-              Nombre del pago
+              {isIncome ? "Nombre del ingreso" : "Nombre del pago"}
             </label>
             <input
               id="bf-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Ej. Alquiler, Luz, Internet, Colegio..."
+              placeholder={
+                isIncome
+                  ? "Ej. Sueldo, Consultorio, Bono, Freelance..."
+                  : "Ej. Alquiler, Luz, Internet, Colegio..."
+              }
               className={INPUT_CLASS}
               autoFocus
             />
           </div>
           <div>
             <label htmlFor="bf-prov" className={LABEL_CLASS}>
-              Proveedor / Entidad
+              {isIncome ? "Origen / Fuente" : "Proveedor / Entidad"}
             </label>
             <input
               id="bf-prov"
               type="text"
               value={provider}
               onChange={(e) => setProvider(e.target.value)}
-              placeholder="Ej. Compañía Eléctrica"
+              placeholder={
+                isIncome
+                  ? "Ej. Empresa, Clínica, Cliente"
+                  : "Ej. Compañía Eléctrica"
+              }
               className={INPUT_CLASS}
             />
           </div>
@@ -160,7 +234,7 @@ function BillFormModalInner({
           </div>
           <div>
             <label htmlFor="bf-day" className={LABEL_CLASS}>
-              Día de vencimiento
+              {isIncome ? "Día de ingreso" : "Día de vencimiento"}
             </label>
             <input
               id="bf-day"
@@ -187,44 +261,52 @@ function BillFormModalInner({
               <option value="weekly">Semanal</option>
               <option value="quarterly">Trimestral</option>
               <option value="yearly">Anual</option>
-              <option value="once">Pago único</option>
+              <option value="once">
+                {isIncome ? "Ingreso único" : "Pago único"}
+              </option>
             </select>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <label htmlFor="bf-rem" className={LABEL_CLASS}>
-              Avisar días antes
-            </label>
-            <input
-              id="bf-rem"
-              type="number"
-              min="0"
-              max="15"
-              value={reminderDaysBefore}
-              onChange={(e) => setReminderDaysBefore(e.target.value)}
-              className={cn(INPUT_CLASS, "tabular-nums")}
-            />
-          </div>
-          <div className="border-border bg-surface/60 flex items-center justify-between rounded-2xl border px-4 py-2.5">
+        {!isIncome && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <p className="text-foreground text-sm font-semibold">
-                Débito automático
-              </p>
-              <p className="text-muted-foreground text-xs">Auto-pago activo</p>
+              <label htmlFor="bf-rem" className={LABEL_CLASS}>
+                Avisar días antes
+              </label>
+              <input
+                id="bf-rem"
+                type="number"
+                min="0"
+                max="15"
+                value={reminderDaysBefore}
+                onChange={(e) => setReminderDaysBefore(e.target.value)}
+                className={cn(INPUT_CLASS, "tabular-nums")}
+              />
             </div>
-            <Switch
-              checked={autoPay}
-              onChange={setAutoPay}
-              ariaLabel="Débito automático"
-            />
+            <div className="border-border bg-surface/60 flex items-center justify-between rounded-2xl border px-4 py-2.5">
+              <div>
+                <p className="text-foreground text-sm font-semibold">
+                  Débito automático
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  Auto-pago activo
+                </p>
+              </div>
+              <Switch
+                checked={autoPay}
+                onChange={setAutoPay}
+                ariaLabel="Débito automático"
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         <div>
           <span className={LABEL_CLASS}>
-            Ícono o imagen del servicio (opcional)
+            {isIncome
+              ? "Ícono o imagen (opcional)"
+              : "Ícono o imagen del servicio (opcional)"}
           </span>
           <VisualIconPicker
             value={visualIcon}
@@ -232,6 +314,22 @@ function BillFormModalInner({
             compact
           />
         </div>
+
+        {!isIncome && (
+          <div>
+            <label htmlFor="bf-url" className={LABEL_CLASS}>
+              Link de pago (opcional)
+            </label>
+            <input
+              id="bf-url"
+              type="url"
+              value={paymentUrl}
+              onChange={(e) => setPaymentUrl(e.target.value)}
+              placeholder="https://portal.entidad.com/pagos"
+              className={INPUT_CLASS}
+            />
+          </div>
+        )}
 
         <div>
           <label htmlFor="bf-notes" className={LABEL_CLASS}>
@@ -242,7 +340,11 @@ function BillFormModalInner({
             rows={2}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Referencia bancaria, portal de pago..."
+            placeholder={
+              isIncome
+                ? "Cuenta destino, observaciones..."
+                : "Referencia bancaria, código de suministro..."
+            }
             className={INPUT_CLASS}
           />
         </div>

@@ -60,6 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const monthKey = toMonthKey(clock.now);
     let count = 0;
     for (const bill of bills) {
+      if (bill.kind === "income") continue;
       const dueDate = clampDayOfMonth(year, month, bill.dueDay);
       const occKey =
         bill.frequency === "monthly"

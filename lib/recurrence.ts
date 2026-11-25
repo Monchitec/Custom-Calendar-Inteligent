@@ -356,6 +356,7 @@ export function buildProjectedCalendarItems(params: {
 
   if (includeBills) {
     for (const bill of bills) {
+      if (bill.kind === "income") continue;
       const occs = projectBillOccurrences(bill, rangeStartKey, rangeEndKey);
       for (const occ of occs) {
         items.push({

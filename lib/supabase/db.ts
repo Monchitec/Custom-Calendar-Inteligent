@@ -138,6 +138,7 @@ function fromChecklistRow(r: Record<string, unknown>): Checklist {
 function toBillRow(b: RecurringBill) {
   return {
     id: b.id,
+    kind: b.kind ?? "expense",
     name: b.name,
     provider: b.provider ?? null,
     visual_icon: b.visualIcon ?? null,
@@ -148,6 +149,7 @@ function toBillRow(b: RecurringBill) {
     frequency: b.frequency,
     auto_pay: b.autoPay,
     reminder_days_before: b.reminderDaysBefore,
+    payment_url: b.paymentUrl ?? null,
     notes: b.notes ?? null,
     paid_occurrences: b.paidOccurrences,
   };
@@ -156,6 +158,7 @@ function toBillRow(b: RecurringBill) {
 function fromBillRow(r: Record<string, unknown>): RecurringBill {
   return {
     id: String(r.id),
+    kind: r.kind === "income" ? "income" : "expense",
     name: String(r.name),
     provider: r.provider ? String(r.provider) : undefined,
     visualIcon: r.visual_icon ? String(r.visual_icon) : undefined,
@@ -166,6 +169,7 @@ function fromBillRow(r: Record<string, unknown>): RecurringBill {
     frequency: (r.frequency as RecurringBill["frequency"]) ?? "monthly",
     autoPay: Boolean(r.auto_pay),
     reminderDaysBefore: Number(r.reminder_days_before) || 0,
+    paymentUrl: r.payment_url ? String(r.payment_url) : undefined,
     notes: r.notes ? String(r.notes) : undefined,
     paidOccurrences: Array.isArray(r.paid_occurrences)
       ? (r.paid_occurrences as string[])
@@ -391,7 +395,26 @@ export async function dbDeleteChecklist(id: string) {
 export async function dbUpsertBill(bill: RecurringBill) {
   const client = getSupabaseBrowserClient();
   if (!client) return;
-  await client.from("bills").upsert(toBillRow(bill));
+  const row = toBillRow(bill);
+  const { error } = await client.from("bills").upsert(row);
+  if (!error) return;
+
+  console.error("[Supabase dbUpsertBill]", error.message);
+
+  // Fallback si falta alguna columna opcional en el schema cache de PostgREST
+  const fallbackRow: Record<string, unknown> = { ...row };
+  if (error.message.includes("payment_url")) {
+    delete fallbackRow.payment_url;
+  }
+  if (error.message.includes("kind")) {
+    delete fallbackRow.kind;
+  }
+  if (Object.keys(fallbackRow).length < Object.keys(row).length) {
+    const retry = await client.from("bills").upsert(fallbackRow);
+    if (retry.error) {
+      console.error("[Supabase dbUpsertBill retry]", retry.error.message);
+    }
+  }
 }
 
 export async function dbDeleteBill(id: string) {

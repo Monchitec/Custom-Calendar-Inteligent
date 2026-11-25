@@ -2,10 +2,12 @@
 
 import {
   AlertTriangle,
+  ArrowDownLeft,
   Calendar,
   CheckCircle2,
   Clock,
   Edit3,
+  ExternalLink,
   Repeat,
   Trash2,
   Zap,
@@ -52,6 +54,13 @@ const STATUS_STYLES: Record<
   },
 };
 
+function normalizePaymentUrl(url?: string): string | null {
+  const trimmed = url?.trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
 interface BillCardProps {
   bill: RecurringBill;
   dueDate: string;
@@ -69,19 +78,35 @@ export function BillCard({
   onEdit,
   onDelete,
 }: BillCardProps) {
-  const st = STATUS_STYLES[status];
-  const StatusIcon = st.icon;
+  const isIncome = bill.kind === "income";
   const isPaid = status === "paid";
+  const st = isIncome
+    ? isPaid
+      ? {
+          label: "Recibido",
+          className: "bg-success-soft text-success border border-success/30",
+          icon: CheckCircle2,
+        }
+      : {
+          label: "Ingreso",
+          className:
+            "bg-secondary-soft text-secondary border border-secondary/30",
+          icon: ArrowDownLeft,
+        }
+    : STATUS_STYLES[status];
+  const StatusIcon = st.icon;
 
   return (
     <article
       className={cn(
         "bg-card flex flex-col justify-between rounded-3xl border p-5 shadow-xs transition-all",
-        status === "overdue"
-          ? "border-danger/45"
-          : isPaid
-            ? "border-success/35 bg-success-soft/10"
-            : "border-border hover:border-primary/30",
+        isIncome
+          ? "border-success/35 bg-success-soft/10"
+          : status === "overdue"
+            ? "border-danger/45"
+            : isPaid
+              ? "border-success/35 bg-success-soft/10"
+              : "border-border hover:border-primary/30",
       )}
     >
       <div>
@@ -96,7 +121,7 @@ export function BillCard({
               <StatusIcon className="h-3.5 w-3.5" />
               {st.label}
             </span>
-            {bill.autoPay && (
+            {!isIncome && bill.autoPay && (
               <span className="bg-secondary-soft text-secondary inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold">
                 <Zap className="h-3 w-3" />
                 Auto-pago
@@ -127,9 +152,19 @@ export function BillCard({
         </div>
 
         <div className="mt-3 flex items-center gap-3">
-          <span className="bg-surface border-border flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border">
+          <span
+            className={cn(
+              "flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border",
+              isIncome
+                ? "border-success/30 bg-success-soft"
+                : "bg-surface border-border",
+            )}
+          >
             <VisualThumb
-              value={inferVisualIcon(bill.name, "bill", bill.visualIcon)}
+              value={
+                bill.visualIcon ||
+                (isIncome ? "💰" : inferVisualIcon(bill.name, "bill"))
+              }
               alt={bill.name}
               sizeClass="h-10 w-10"
               textClass="text-xl"
@@ -151,15 +186,21 @@ export function BillCard({
         <div className="bg-surface/70 mt-4 flex items-baseline justify-between gap-2 rounded-2xl px-3.5 py-2.5">
           <div>
             <p className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase">
-              Monto
+              {isIncome ? "Ingreso" : "Monto"}
             </p>
-            <p className="text-foreground text-xl font-extrabold tabular-nums">
+            <p
+              className={cn(
+                "text-xl font-extrabold tabular-nums",
+                isIncome ? "text-success" : "text-foreground",
+              )}
+            >
+              {isIncome ? "+" : ""}
               {formatCurrency(bill.amount, bill.currency)}
             </p>
           </div>
           <div className="text-right">
             <p className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase">
-              Vencimiento
+              {isIncome ? "Fecha" : "Vencimiento"}
             </p>
             <p className="text-foreground text-sm font-bold tabular-nums">
               {formatShortDate(dueDate)}
@@ -174,6 +215,18 @@ export function BillCard({
         {bill.notes && (
           <p className="text-muted-foreground mt-3 text-xs">{bill.notes}</p>
         )}
+
+        {!isIncome && normalizePaymentUrl(bill.paymentUrl) && (
+          <a
+            href={normalizePaymentUrl(bill.paymentUrl)!}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="border-primary/25 bg-primary-soft/70 text-primary hover:bg-primary hover:text-primary-foreground mt-3 inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition-colors"
+          >
+            <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+            Abrir link de pago
+          </a>
+        )}
       </div>
 
       <div className="mt-4 pt-2">
@@ -184,7 +237,13 @@ export function BillCard({
           className="w-full"
         >
           <CheckCircle2 className="h-4 w-4" />
-          {isPaid ? "Pagado (desmarcar)" : "Marcar como pagado"}
+          {isIncome
+            ? isPaid
+              ? "Recibido (desmarcar)"
+              : "Marcar como recibido"
+            : isPaid
+              ? "Pagado (desmarcar)"
+              : "Marcar como pagado"}
         </Button>
       </div>
     </article>
@@ -193,10 +252,10 @@ export function BillCard({
 
 /**
  * Plantilla de columnas compartida:
- * Nombre de Servicio | Monto | Vencimiento | Estado | Acciones (alineadas a la derecha)
+ * Nombre de Servicio | Monto | Vencimiento | Estado | Link | Acciones (alineadas a la derecha)
  */
 export const BILL_LIST_GRID_COLS =
-  "lg:grid-cols-[minmax(190px,280px)_minmax(96px,118px)_minmax(124px,152px)_minmax(128px,176px)_minmax(148px,1fr)] lg:gap-3";
+  "lg:grid-cols-[minmax(175px,250px)_minmax(102px,120px)_minmax(118px,144px)_minmax(118px,162px)_minmax(104px,124px)_minmax(148px,1fr)] lg:gap-3";
 
 /** Vista compacta en línea (lista de detalles) */
 export function BillRow({
@@ -207,29 +266,55 @@ export function BillRow({
   onEdit,
   onDelete,
 }: BillCardProps) {
-  const st = STATUS_STYLES[status];
-  const StatusIcon = st.icon;
+  const isIncome = bill.kind === "income";
   const isPaid = status === "paid";
+  const st = isIncome
+    ? isPaid
+      ? {
+          label: "Recibido",
+          className: "bg-success-soft text-success border border-success/30",
+          icon: CheckCircle2,
+        }
+      : {
+          label: "Ingreso",
+          className:
+            "bg-secondary-soft text-secondary border border-secondary/30",
+          icon: ArrowDownLeft,
+        }
+    : STATUS_STYLES[status];
+  const StatusIcon = st.icon;
 
   return (
     <div
       className={cn(
         "hover:bg-card-hover/60 flex flex-col gap-2.5 border-l-3 px-4 py-2.5 transition-colors sm:px-5 lg:grid lg:items-center",
         BILL_LIST_GRID_COLS,
-        status === "overdue"
-          ? "border-l-danger"
-          : status === "due-soon"
-            ? "border-l-warning"
-            : isPaid
-              ? "border-l-success bg-success-soft/10"
-              : "border-l-transparent",
+        isIncome
+          ? "border-l-success bg-success-soft/10"
+          : status === "overdue"
+            ? "border-l-danger"
+            : status === "due-soon"
+              ? "border-l-warning"
+              : isPaid
+                ? "border-l-success bg-success-soft/10"
+                : "border-l-transparent",
       )}
     >
-      {/* Nombre de Servicio + Proveedor */}
+      {/* Nombre de Servicio / Ingreso + Proveedor */}
       <div className="flex min-w-0 items-center gap-2.5">
-        <span className="bg-surface border-border flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border">
+        <span
+          className={cn(
+            "flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border",
+            isIncome
+              ? "border-success/30 bg-success-soft"
+              : "bg-surface border-border",
+          )}
+        >
           <VisualThumb
-            value={inferVisualIcon(bill.name, "bill", bill.visualIcon)}
+            value={
+              bill.visualIcon ||
+              (isIncome ? "💰" : inferVisualIcon(bill.name, "bill"))
+            }
             alt={bill.name}
             sizeClass="h-9 w-9"
             textClass="text-lg"
@@ -249,12 +334,18 @@ export function BillRow({
         </div>
       </div>
 
-      {/* Monto (a la derecha de Nombre de Servicio) */}
-      <div className="text-foreground text-sm font-extrabold whitespace-nowrap tabular-nums sm:text-base lg:pr-2 lg:text-right">
+      {/* Monto (verde con + para ingresos) */}
+      <div
+        className={cn(
+          "text-sm font-extrabold whitespace-nowrap tabular-nums sm:text-base lg:pr-2 lg:text-right",
+          isIncome ? "text-success" : "text-foreground",
+        )}
+      >
+        {isIncome ? "+" : ""}
         {formatCurrency(bill.amount, bill.currency)}
       </div>
 
-      {/* Vencimiento + Frecuencia */}
+      {/* Fecha / Vencimiento + Frecuencia */}
       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs">
         <span className="text-foreground font-bold whitespace-nowrap tabular-nums">
           {formatShortDate(dueDate)}
@@ -265,7 +356,7 @@ export function BillRow({
         </span>
       </div>
 
-      {/* Estado + Auto-pago (a la derecha de Vencimiento) */}
+      {/* Estado */}
       <div className="flex flex-wrap items-center gap-1.5">
         <span
           className={cn(
@@ -276,11 +367,29 @@ export function BillRow({
           <StatusIcon className="h-3.5 w-3.5 shrink-0" />
           {st.label}
         </span>
-        {bill.autoPay && (
+        {!isIncome && bill.autoPay && (
           <span className="bg-secondary-soft text-secondary inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap">
             <Zap className="h-3 w-3 shrink-0" />
             Auto
           </span>
+        )}
+      </div>
+
+      {/* Link de pago */}
+      <div className="flex items-center">
+        {!isIncome && normalizePaymentUrl(bill.paymentUrl) ? (
+          <a
+            href={normalizePaymentUrl(bill.paymentUrl)!}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={bill.paymentUrl}
+            className="border-primary/25 bg-primary-soft/70 text-primary hover:bg-primary hover:text-primary-foreground inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap transition-colors"
+          >
+            <ExternalLink className="h-3 w-3 shrink-0" />
+            Ir a pagar
+          </a>
+        ) : (
+          <span className="text-muted-foreground/50 text-xs">—</span>
         )}
       </div>
 
@@ -293,7 +402,13 @@ export function BillRow({
           className="min-h-8 px-3 text-xs"
         >
           <CheckCircle2 className="h-3.5 w-3.5" />
-          {isPaid ? "Pagado" : "Pagar"}
+          {isIncome
+            ? isPaid
+              ? "Recibido"
+              : "Recibir"
+            : isPaid
+              ? "Pagado"
+              : "Pagar"}
         </Button>
         <Button
           variant="ghost"

@@ -66,9 +66,10 @@ create table if not exists public.checklists (
   created_at timestamptz not null default now()
 );
 
--- 5. PAGOS RECURRENTES DEL HOGAR
+-- 5. PAGOS E INGRESOS DEL HOGAR
 create table if not exists public.bills (
   id text primary key,
+  kind text not null default 'expense',
   name text not null,
   provider text,
   visual_icon text,
@@ -79,6 +80,7 @@ create table if not exists public.bills (
   frequency text not null default 'monthly',
   auto_pay boolean not null default false,
   reminder_days_before integer not null default 3,
+  payment_url text,
   notes text,
   paid_occurrences jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now()
