@@ -446,18 +446,18 @@ export function BillsDashboard() {
             </div>
 
             <div className="text-muted-foreground flex items-center gap-3 text-[11px] font-semibold">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="bg-primary h-0.5 w-4 rounded-full" />
-                Programado
+              <span className="text-success inline-flex items-center gap-1.5 font-bold">
+                <span className="bg-success h-1 w-4 rounded-full" />
+                Pagado
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <span className="bg-success h-0.5 w-4 rounded-full" />
-                Pagado
+                <span className="border-muted-foreground/60 w-4 border-t-2 border-dashed" />
+                Programado
               </span>
             </div>
           </div>
 
-          {/* Gráfico SVG de líneas tipo electrocardiograma / pulso financiero */}
+          {/* Gráfico SVG de líneas: Pagado como línea protagonista + Programado como meta punteada */}
           <div className="mt-3 w-full">
             <svg
               viewBox={`0 0 ${monthlyTrend.width} ${monthlyTrend.height}`}
@@ -466,24 +466,6 @@ export function BillsDashboard() {
               aria-label="Evolución de pagos programados y pagados centrada en el mes actual"
             >
               <defs>
-                <linearGradient
-                  id="bills-total-grad"
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="1"
-                >
-                  <stop
-                    offset="0%"
-                    stopColor="var(--primary)"
-                    stopOpacity="0.14"
-                  />
-                  <stop
-                    offset="100%"
-                    stopColor="var(--primary)"
-                    stopOpacity="0"
-                  />
-                </linearGradient>
                 <linearGradient
                   id="bills-paid-grad"
                   x1="0"
@@ -494,7 +476,7 @@ export function BillsDashboard() {
                   <stop
                     offset="0%"
                     stopColor="var(--success)"
-                    stopOpacity="0.18"
+                    stopOpacity="0.24"
                   />
                   <stop
                     offset="100%"
@@ -528,20 +510,14 @@ export function BillsDashboard() {
                   y1={monthlyTrend.padTop}
                   x2={pt.x}
                   y2={monthlyTrend.baseY}
-                  stroke={pt.isSelected ? "var(--primary)" : "var(--border)"}
+                  stroke={pt.isSelected ? "var(--success)" : "var(--border)"}
                   strokeOpacity={pt.isSelected ? 0.35 : 0.45}
                   strokeWidth={pt.isSelected ? 1.5 : 1}
                   strokeDasharray="3 3"
                 />
               ))}
 
-              {/* Áreas suaves bajo las líneas */}
-              {monthlyTrend.totalAreaPath && (
-                <path
-                  d={monthlyTrend.totalAreaPath}
-                  fill="url(#bills-total-grad)"
-                />
-              )}
+              {/* Área verde suave únicamente bajo la línea protagonista (Pagado) */}
               {monthlyTrend.paidAreaPath && (
                 <path
                   d={monthlyTrend.paidAreaPath}
@@ -549,21 +525,23 @@ export function BillsDashboard() {
                 />
               )}
 
-              {/* Línea de Total Programado */}
+              {/* Línea secundaria de referencia: Total Programado (punteada y discreta) */}
               <polyline
                 fill="none"
-                stroke="var(--primary)"
-                strokeWidth="2.5"
+                stroke="var(--muted-foreground)"
+                strokeOpacity="0.45"
+                strokeWidth="1.75"
+                strokeDasharray="5 4"
                 strokeLinejoin="round"
                 strokeLinecap="round"
                 points={monthlyTrend.totalPolyline}
               />
 
-              {/* Línea de Pagado */}
+              {/* Línea protagonista: Pagado (sólida, más gruesa y en verde) */}
               <polyline
                 fill="none"
                 stroke="var(--success)"
-                strokeWidth="2.5"
+                strokeWidth="3"
                 strokeLinejoin="round"
                 strokeLinecap="round"
                 points={monthlyTrend.paidPolyline}
@@ -578,51 +556,50 @@ export function BillsDashboard() {
                 >
                   <title>{`${pt.fullLabel}: ${formatCurrency(pt.paid)} pagado de ${formatCurrency(pt.total)}`}</title>
 
-                  {/* Etiqueta superior del total programado */}
-                  <text
-                    x={pt.x}
-                    y={Math.max(12, pt.yTotal - 9)}
-                    textAnchor="middle"
-                    fill={
-                      pt.isSelected
-                        ? "var(--foreground)"
-                        : "var(--muted-foreground)"
-                    }
-                    fontSize="10.5"
-                    fontWeight={pt.isSelected ? "800" : "600"}
-                    style={{ fontVariantNumeric: "tabular-nums" }}
-                  >
-                    {formatCurrency(pt.total, "PEN", true)}
-                  </text>
-
-                  {/* Halo del mes activo */}
-                  {pt.isSelected && (
-                    <circle
-                      cx={pt.x}
-                      cy={pt.yTotal}
-                      r="8"
-                      fill="var(--primary)"
-                      fillOpacity="0.16"
-                    />
+                  {/* Etiqueta discreta del total programado (referencia superior) */}
+                  {pt.total > 0 && (
+                    <text
+                      x={pt.x}
+                      y={Math.max(12, pt.yTotal - 8)}
+                      textAnchor="middle"
+                      fill="var(--muted-foreground)"
+                      fontSize="10"
+                      fontWeight={pt.isSelected ? "700" : "500"}
+                      style={{ fontVariantNumeric: "tabular-nums" }}
+                    >
+                      {formatCurrency(pt.total, "PEN", true)}
+                    </text>
                   )}
 
-                  {/* Punto de Total Programado */}
+                  {/* Punto discreto de referencia (Programado) */}
                   <circle
                     cx={pt.x}
                     cy={pt.yTotal}
-                    r={pt.isSelected ? 4.5 : 3.5}
+                    r={pt.isSelected ? 3 : 2.5}
                     fill="var(--card)"
-                    stroke="var(--primary)"
-                    strokeWidth="2.5"
+                    stroke="var(--muted-foreground)"
+                    strokeOpacity="0.6"
+                    strokeWidth="1.5"
                   />
 
-                  {/* Punto de Pagado */}
+                  {/* Halo destacado en la línea protagonista (Pagado) del mes activo */}
+                  {pt.isSelected && (
+                    <circle
+                      cx={pt.x}
+                      cy={pt.yPaid}
+                      r="9"
+                      fill="var(--success)"
+                      fillOpacity="0.18"
+                    />
+                  )}
+
+                  {/* Punto protagonista de Pagado */}
                   <circle
                     cx={pt.x}
                     cy={pt.yPaid}
-                    r={pt.isSelected ? 4.5 : 3.5}
-                    fill="var(--card)"
-                    stroke="var(--success)"
+                    r={pt.isSelected ? 5 : 3.5}
+                    fill={pt.isSelected ? "var(--success)" : "var(--card)"}
+                    stroke={pt.isSelected ? "var(--card)" : "var(--success)"}
                     strokeWidth="2.5"
                   />
                 </g>
