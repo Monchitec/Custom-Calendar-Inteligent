@@ -15,11 +15,13 @@ import {
   LayoutGrid,
   Plus,
   Search,
+  Users,
   X,
 } from "lucide-react";
 import { NotificationPopover } from "@/components/shared/layout/NotificationPopover";
 import { useCalendarData } from "@/components/shared/providers/CalendarDataProvider";
 import { Button } from "@/components/shared/ui/Button";
+import { ProfileIcon } from "@/components/shared/ui/ProfileIcon";
 import { useClock } from "@/hooks/useClock";
 import { cn } from "@/lib/cn";
 import {
@@ -32,6 +34,7 @@ import {
 } from "@/lib/dates";
 import { getBillOccurrenceKey, getBillStatus } from "@/lib/recurrence";
 import { readStorage, writeStorage } from "@/lib/storage";
+import { getProfileSlotClasses } from "@/lib/themes";
 import type { BillKind, BillStatus, RecurringBill } from "@/types/bills";
 import {
   BillCard,
@@ -88,7 +91,37 @@ function doesBillApplyToMonth(
 
 export function BillsDashboard() {
   const clock = useClock();
-  const { bills, toggleBillPaid, deleteBill } = useCalendarData();
+  const { profiles, bills, toggleBillPaid, deleteBill } = useCalendarData();
+
+  const primaryProfile = useMemo(
+    () => profiles.find((p) => p.isPrimary) ?? profiles[0],
+    [profiles],
+  );
+
+  const [selectedProfileId, setSelectedProfileId] = useState<string>("");
+  const activeProfileId = useMemo(() => {
+    if (selectedProfileId === "all") return "all";
+    if (
+      selectedProfileId &&
+      profiles.some((p) => p.id === selectedProfileId)
+    ) {
+      return selectedProfileId;
+    }
+    return primaryProfile?.id ?? "all";
+  }, [selectedProfileId, profiles, primaryProfile]);
+
+  const activeProfile = useMemo(
+    () =>
+      activeProfileId === "all"
+        ? undefined
+        : profiles.find((p) => p.id === activeProfileId),
+    [profiles, activeProfileId],
+  );
+  const activeProfileSlot = activeProfile
+    ? getProfileSlotClasses(activeProfile.colorSlot)
+    : null;
+  const activeCurrency =
+    activeProfile?.currency ?? primaryProfile?.currency ?? "PEN";
 
   const [monthOffset, setMonthOffset] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
@@ -163,8 +196,16 @@ export function BillsDashboard() {
     setModalOpen(true);
   };
 
+  const profileFilteredBills = useMemo(() => {
+    if (activeProfileId === "all") return bills;
+    return bills.filter((bill) => {
+      const ownerId = bill.profileId ?? primaryProfile?.id;
+      return ownerId === activeProfileId;
+    });
+  }, [bills, activeProfileId, primaryProfile]);
+
   const enrichedBills = useMemo(() => {
-    return bills
+    return profileFilteredBills
       .filter((bill) => doesBillApplyToMonth(bill, viewYear, viewMonth))
       .map((bill) => {
         const dueDate = clampDayOfMonth(viewYear, viewMonth, bill.dueDay);
@@ -190,7 +231,7 @@ export function BillsDashboard() {
         };
       })
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  }, [bills, viewYear, viewMonth, viewMonthKey, clock.todayKey]);
+  }, [profileFilteredBills, viewYear, viewMonth, viewMonthKey, clock.todayKey]);
 
   const searchedBills = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -331,47 +372,110 @@ export function BillsDashboard() {
 
   return (
     <div className="space-y-3">
-      {/* Encabezado principal con filtro de mes centrado */}
-      <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-[1fr_auto_1fr]">
-        <h1 className="text-foreground text-2xl font-extrabold tracking-tight sm:text-3xl">
-          Finanzas y Pagos del Hogar
-        </h1>
+      {/* Encabezado principal en una sola línea: Título + Perfil + Mes + Acciones */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+          <h1 className="text-foreground text-xl font-extrabold tracking-tight whitespace-nowrap sm:text-2xl">
+            Pagos y Finanzas de:
+          </h1>
 
-        <div className="border-border bg-card flex w-fit items-center gap-1 rounded-2xl border p-1 lg:justify-self-center">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setMonthOffset((m) => m - 1)}
-            aria-label="Mes anterior"
-            className="h-9 w-9"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
-          <button
-            type="button"
-            onClick={() => setMonthOffset(0)}
-            title={monthOffset !== 0 ? "Volver al mes actual" : undefined}
-            className={cn(
-              "min-w-36 text-center text-sm font-extrabold whitespace-nowrap tabular-nums transition-colors",
-              monthOffset !== 0
-                ? "text-primary cursor-pointer hover:underline"
-                : "text-foreground cursor-default",
-            )}
-          >
-            {formatMonthYear(viewDate)}
-          </button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setMonthOffset((m) => m + 1)}
-            aria-label="Mes siguiente"
-            className="h-9 w-9"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </Button>
+          {profiles.length > 0 && (
+            <div className="relative inline-flex items-center">
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "pointer-events-none absolute left-1.5 flex h-6 w-6 items-center justify-center overflow-hidden rounded-full",
+                  activeProfileSlot
+                    ? activeProfileSlot.iconBg
+                    : "bg-primary-soft text-primary",
+                )}
+              >
+                {activeProfile?.customImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={activeProfile.customImage}
+                    alt={activeProfile.name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : activeProfile ? (
+                  <ProfileIcon name={activeProfile.icon} className="h-3.5 w-3.5" />
+                ) : (
+                  <Users className="h-3.5 w-3.5" />
+                )}
+              </span>
+
+              <select
+                aria-label="Filtrar finanzas por perfil"
+                value={activeProfileId}
+                onChange={(e) => {
+                  setSelectedProfileId(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className={cn(
+                  "h-9 cursor-pointer appearance-none rounded-full border pr-8 pl-9 text-xs font-extrabold shadow-2xs transition-colors focus:ring-2 focus:outline-none sm:text-sm",
+                  activeProfileSlot
+                    ? activeProfileSlot.activeChip
+                    : "border-border bg-card text-foreground hover:bg-muted focus:border-primary focus:ring-primary/25",
+                )}
+              >
+                {profiles.map((p) => (
+                  <option
+                    key={p.id}
+                    value={p.id}
+                    className="bg-card text-foreground"
+                  >
+                    {p.name}
+                  </option>
+                ))}
+                {profiles.length > 1 && (
+                  <option value="all" className="bg-card text-foreground">
+                    Todos los perfiles
+                  </option>
+                )}
+              </select>
+              <ChevronDown
+                aria-hidden="true"
+                className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 opacity-75"
+              />
+            </div>
+          )}
+
+          <div className="border-border bg-card flex w-fit items-center gap-1 rounded-2xl border p-1 shadow-2xs">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setMonthOffset((m) => m - 1)}
+              aria-label="Mes anterior"
+              className="h-7 w-7"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <button
+              type="button"
+              onClick={() => setMonthOffset(0)}
+              title={monthOffset !== 0 ? "Volver al mes actual" : undefined}
+              className={cn(
+                "min-w-32 text-center text-xs font-extrabold whitespace-nowrap tabular-nums transition-colors sm:text-sm",
+                monthOffset !== 0
+                  ? "text-primary cursor-pointer hover:underline"
+                  : "text-foreground cursor-default",
+              )}
+            >
+              {formatMonthYear(viewDate)}
+            </button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setMonthOffset((m) => m + 1)}
+              aria-label="Mes siguiente"
+              className="h-7 w-7"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 lg:justify-self-end">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="secondary"
             size="md"
@@ -406,7 +510,7 @@ export function BillsDashboard() {
           </h2>
 
           <p className="text-success text-xl leading-tight font-extrabold tracking-tight tabular-nums sm:text-2xl">
-            {formatCurrency(totals.totalIncome)}
+            {formatCurrency(totals.totalIncome, activeCurrency)}
           </p>
         </section>
 
@@ -420,7 +524,7 @@ export function BillsDashboard() {
           </h2>
 
           <p className="text-primary text-xl leading-tight font-extrabold tracking-tight tabular-nums sm:text-2xl">
-            {formatCurrency(totals.totalExpense)}
+            {formatCurrency(totals.totalExpense, activeCurrency)}
           </p>
         </section>
 
@@ -443,7 +547,7 @@ export function BillsDashboard() {
                   : "text-foreground",
             )}
           >
-            {formatCurrency(totals.balance)}
+            {formatCurrency(totals.balance, activeCurrency)}
           </p>
         </section>
       </div>
@@ -462,12 +566,12 @@ export function BillsDashboard() {
               Mi deuda pagada es:
             </h2>
             <span className="text-primary text-xs font-extrabold tabular-nums sm:text-sm">
-              {formatCurrency(totals.paidExpense)}
+              {formatCurrency(totals.paidExpense, activeCurrency)}
             </span>
           </div>
 
           <span className="text-foreground text-xs font-bold tabular-nums sm:text-sm">
-            {formatCurrency(totals.totalExpense)}
+            {formatCurrency(totals.totalExpense, activeCurrency)}
           </span>
         </div>
 
@@ -975,6 +1079,9 @@ export function BillsDashboard() {
         open={modalOpen}
         editingBill={editingBill}
         defaultKind={modalDefaultKind}
+        defaultProfileId={
+          activeProfileId !== "all" ? activeProfileId : primaryProfile?.id
+        }
         onClose={() => {
           setModalOpen(false);
           setEditingBill(null);

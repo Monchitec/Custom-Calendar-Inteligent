@@ -38,9 +38,10 @@ export function QuickAddModal() {
 
   return (
     <QuickAddModalInner
-      key={`${quickAdd.tab}:${quickAdd.defaultDate ?? "today"}`}
+      key={`${quickAdd.tab}:${quickAdd.defaultDate ?? "today"}:${quickAdd.defaultTime ?? "09:00"}`}
       initialTab={quickAdd.tab}
       defaultDate={quickAdd.defaultDate}
+      defaultTime={quickAdd.defaultTime}
       onClose={closeQuickAdd}
     />
   );
@@ -49,10 +50,12 @@ export function QuickAddModal() {
 function QuickAddModalInner({
   initialTab,
   defaultDate,
+  defaultTime,
   onClose,
 }: {
   initialTab: QuickAddTab;
   defaultDate?: string;
+  defaultTime?: string;
   onClose: () => void;
 }) {
   const { profiles, preferences, addEvent, addTask, addBill, addAlarm } =
@@ -63,20 +66,27 @@ function QuickAddModalInner({
 
   const tab = initialTab;
 
+  const initialStart = defaultTime ?? "09:00";
+  const initialEnd = minutesToTime(
+    Math.min(23 * 60 + 45, timeToMinutes(initialStart) + 60),
+  );
+
   // Event state
   const [evtTitle, setEvtTitle] = useState("");
   const [evtDate, setEvtDate] = useState(todayKey);
   const [evtAllDay, setEvtAllDay] = useState(false);
-  const [evtStart, setEvtStart] = useState("09:00");
-  const [evtEnd, setEvtEnd] = useState("10:00");
-  const [evtProfile, setEvtProfile] = useState(defaultProfileId);
+  const [evtStart, setEvtStart] = useState(initialStart);
+  const [evtEnd, setEvtEnd] = useState(initialEnd);
+  const [evtProfile, setEvtProfile] = useState("");
   const [evtRecurrence, setEvtRecurrence] = useState<string>("none");
   const [evtCustomDays, setEvtCustomDays] = useState<number[]>(() => [
     parseDateKey(todayKey).getDay(),
   ]);
   const [evtLocation, setEvtLocation] = useState("");
   const [evtReminder, setEvtReminder] = useState<string>(
-    String(preferences.defaultEventLeadMinutes),
+    preferences.defaultEventLeadMinutes > 0
+      ? String(preferences.defaultEventLeadMinutes)
+      : "15",
   );
   const [evtNotes, setEvtNotes] = useState("");
   const [evtIcon, setEvtIcon] = useState("");
@@ -141,13 +151,18 @@ function QuickAddModalInner({
             : "none"
           : (evtRecurrence as RecurrenceFrequency);
 
+      if (!evtProfile) {
+        setError("Escoge un perfil para el evento.");
+        return;
+      }
+
       addEvent({
         title: evtTitle.trim(),
         date: evtDate,
         allDay: evtAllDay,
         startTime: evtAllDay ? undefined : evtStart,
         endTime: evtAllDay ? undefined : evtEnd,
-        profileId: evtProfile || defaultProfileId,
+        profileId: evtProfile,
         visualIcon: evtIcon || undefined,
         location: evtLocation.trim() || undefined,
         notes: evtNotes.trim() || undefined,
@@ -185,6 +200,8 @@ function QuickAddModalInner({
         return;
       }
       addBill({
+        profileId:
+          profiles.find((p) => p.isPrimary)?.id ?? defaultProfileId ?? undefined,
         name: billName.trim(),
         provider: billProvider.trim() || undefined,
         visualIcon: billIcon || undefined,
@@ -319,8 +336,12 @@ function QuickAddModalInner({
                   id="qa-evt-prf"
                   value={evtProfile}
                   onChange={(e) => setEvtProfile(e.target.value)}
-                  className={INPUT_CLASS}
+                  className={cn(
+                    INPUT_CLASS,
+                    !evtProfile && "text-muted-foreground",
+                  )}
                 >
+                  <option value="">Escoger perfil...</option>
                   {profiles.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}

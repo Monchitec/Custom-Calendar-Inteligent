@@ -5,6 +5,7 @@ import {
   CalendarPlus,
   ChevronLeft,
   ChevronRight,
+  Edit3,
   MapPin,
   Plus,
   Trash2,
@@ -184,7 +185,7 @@ export function DayView({
                 const cardClasses = isBill
                   ? isPaid
                     ? "bg-success-soft/75 border-l-success text-foreground"
-                    : "bg-warning-soft/75 border-l-warning text-foreground"
+                    : slot.block
                   : slot.block;
 
                 const timeLabel = isBill
@@ -250,14 +251,23 @@ export function DayView({
                         >
                           <span
                             className={cn(
-                              "flex h-5 w-5 items-center justify-center rounded-full",
+                              "flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full",
                               slot.iconBg,
                             )}
                           >
-                            <ProfileIcon
-                              name={profile.icon}
-                              className="h-3 w-3"
-                            />
+                            {profile.customImage ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={profile.customImage}
+                                alt={profile.name}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <ProfileIcon
+                                name={profile.icon}
+                                className="h-3 w-3"
+                              />
+                            )}
                           </span>
                           <span className="text-foreground hidden max-w-20 truncate text-[11px] font-bold sm:inline">
                             {profile.name}
@@ -276,6 +286,17 @@ export function DayView({
                           aria-hidden="true"
                         />
                       )}
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onSelectItem(item)}
+                        aria-label={`Editar ${item.title}`}
+                        title="Editar"
+                        className="text-muted-foreground hover:bg-card/80 hover:text-foreground h-8 w-8 rounded-xl"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </Button>
 
                       <Button
                         variant="ghost"

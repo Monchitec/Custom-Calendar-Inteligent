@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { CheckSquare2, Plus, Square } from "lucide-react";
 import { VisualThumb } from "@/components/shared/ui/VisualThumb";
 import { cn } from "@/lib/cn";
@@ -19,7 +20,10 @@ interface MonthGridProps {
   itemsByDate: Map<string, ProjectedCalendarItem[]>;
   onOpenDayDrawer: (dateKey: string) => void;
   onQuickAddForDate: (dateKey: string) => void;
-  onSelectItem: (item: ProjectedCalendarItem) => void;
+  onSelectItem: (
+    item: ProjectedCalendarItem,
+    anchorEl?: HTMLElement | null,
+  ) => void;
 }
 
 export function MonthGrid({
@@ -30,13 +34,14 @@ export function MonthGrid({
   onQuickAddForDate,
   onSelectItem,
 }: MonthGridProps) {
+  const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   const year = anchorDate.getFullYear();
   const month = anchorDate.getMonth();
   const days = getMonthGridDays(year, month);
   const headers = getWeekdayHeadersMonday();
 
   return (
-    <div className="border-border bg-card flex h-[calc(100dvh-13rem)] min-h-[420px] flex-col overflow-hidden rounded-2xl border shadow-xs sm:rounded-3xl md:h-[calc(100dvh-9.25rem)] md:min-h-[470px]">
+    <div className="border-border bg-card flex h-[calc(100dvh-12.5rem)] min-h-[460px] flex-col overflow-hidden rounded-2xl border shadow-xs sm:rounded-3xl md:h-[calc(100dvh-8.25rem)] md:min-h-[540px]">
       {/* Encabezados de días */}
       <div className="border-border bg-surface/65 grid shrink-0 grid-cols-7 border-b">
         {headers.map((dayName, index) => (
@@ -69,8 +74,9 @@ export function MonthGrid({
           }
 
           const isToday = key === todayKey;
+          const isSelected = key === selectedDayKey;
           const dayItems = itemsByDate.get(key) ?? [];
-          const visibleItems = dayItems.slice(0, 2);
+          const visibleItems = dayItems.slice(0, 3);
           const overflowCount = dayItems.length - visibleItems.length;
 
           return (
@@ -78,28 +84,31 @@ export function MonthGrid({
               key={key}
               role="button"
               tabIndex={0}
-              onClick={() => onOpenDayDrawer(key)}
-              onDoubleClick={() => onQuickAddForDate(key)}
+              onClick={() => setSelectedDayKey(key)}
+              onDoubleClick={() => onOpenDayDrawer(key)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   onOpenDayDrawer(key);
                 }
               }}
-              aria-label={`Día ${day.getDate()}, ${dayItems.length} registros`}
+              aria-label={`Día ${day.getDate()}, ${dayItems.length} registros. Doble clic para abrir el día`}
               className={cn(
                 "group bg-card hover:bg-card-hover/80 relative flex min-h-0 cursor-pointer flex-col overflow-hidden p-1 transition-colors sm:p-1.5",
                 "focus-visible:ring-primary focus-visible:z-10 focus-visible:ring-2 focus-visible:outline-none",
                 isToday &&
                   "bg-primary-soft/35 ring-primary/45 ring-2 ring-inset",
+                !isToday &&
+                  isSelected &&
+                  "bg-primary-soft/20 ring-primary/40 ring-1 ring-inset",
               )}
             >
-              {/* Fila superior: números grandes y legibles */}
-              <div className="mb-0.5 flex shrink-0 items-center justify-between gap-0.5 sm:mb-1">
+              {/* Fila superior: números compactos y legibles sin traslapar eventos */}
+              <div className="mb-1 flex shrink-0 items-center justify-between gap-0.5">
                 <div className="flex items-center gap-1">
                   <span
                     className={cn(
-                      "inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1 text-base leading-none font-extrabold tabular-nums sm:h-8 sm:min-w-8 sm:text-lg",
+                      "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs leading-none font-extrabold tabular-nums sm:h-6 sm:min-w-6 sm:text-sm",
                       isToday
                         ? "bg-primary text-primary-foreground shadow-xs"
                         : "text-foreground",
@@ -108,7 +117,7 @@ export function MonthGrid({
                     {day.getDate()}
                   </span>
                   {isToday && (
-                    <span className="bg-primary-soft text-primary hidden rounded-full px-1.5 py-0.5 text-[10px] leading-none font-extrabold tracking-wide uppercase lg:inline">
+                    <span className="bg-primary-soft text-primary hidden rounded-full px-1.5 py-0.5 text-[9px] leading-none font-extrabold tracking-wide uppercase lg:inline">
                       Hoy
                     </span>
                   )}
@@ -116,9 +125,17 @@ export function MonthGrid({
 
                 <div className="flex items-center gap-0.5">
                   {overflowCount > 0 && (
-                    <span className="bg-primary-soft text-primary rounded-md px-1 py-0.5 text-[9px] leading-none font-extrabold tabular-nums sm:px-1.5 sm:text-[10px]">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenDayDrawer(key);
+                      }}
+                      title={`Ver los ${dayItems.length} registros de este día`}
+                      className="bg-primary-soft text-primary hover:bg-primary hover:text-primary-foreground cursor-pointer rounded-md px-1 py-0.5 text-[9px] leading-none font-extrabold tabular-nums transition-colors sm:px-1.5 sm:text-[10px]"
+                    >
                       +{overflowCount}
-                    </span>
+                    </button>
                   )}
                   <button
                     type="button"
@@ -155,7 +172,7 @@ export function MonthGrid({
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          onSelectItem(item);
+                          onSelectItem(item, e.currentTarget);
                         }}
                         title={`Tarea: ${item.title}`}
                         className={cn(
@@ -198,7 +215,7 @@ export function MonthGrid({
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          onSelectItem(item);
+                          onSelectItem(item, e.currentTarget);
                         }}
                         title={
                           typeof item.amount === "number"
@@ -206,10 +223,10 @@ export function MonthGrid({
                             : item.title
                         }
                         className={cn(
-                          "flex w-full min-w-0 cursor-pointer items-center justify-between gap-1 overflow-hidden rounded-sm border border-l-[3px] px-1 py-0.5 text-left text-[11px] leading-tight transition-all hover:brightness-97 sm:rounded-md sm:px-1.5 sm:py-1 sm:text-xs",
+                          "flex w-full min-w-0 cursor-pointer items-center justify-between gap-1 overflow-hidden rounded-sm border border-l-[3px] px-1 py-0.5 text-left text-[11px] leading-tight transition-all hover:brightness-97 sm:rounded-md sm:px-1.5",
                           item.billPaid
                             ? "border-success/35 border-l-success bg-success-soft/50 opacity-80"
-                            : "border-warning/35 border-l-cat-bills bg-warning-soft/60",
+                            : slot.block,
                         )}
                       >
                         <span className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
@@ -251,11 +268,11 @@ export function MonthGrid({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onSelectItem(item);
+                        onSelectItem(item, e.currentTarget);
                       }}
                       title={item.title}
                       className={cn(
-                        "flex w-full min-w-0 cursor-pointer items-center gap-1 overflow-hidden rounded-sm border-l-[3px] px-1 py-0.5 text-left text-[11px] leading-tight transition-all hover:brightness-96 sm:rounded-md sm:px-1.5 sm:py-1 sm:text-xs",
+                        "flex w-full min-w-0 cursor-pointer items-center gap-1 overflow-hidden rounded-sm border-l-[3px] px-1 py-0.5 text-left text-[11px] leading-tight transition-all hover:brightness-96 sm:rounded-md sm:px-1.5",
                         slot.block,
                         isDone && "opacity-60",
                       )}

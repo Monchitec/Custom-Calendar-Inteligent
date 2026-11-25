@@ -26,12 +26,22 @@ export type ProfileIconName =
   | "utensils"
   | "music";
 
+export type ProfileCurrency = "PEN" | "USD";
+
 export interface Profile {
   id: string;
   name: string;
   icon: ProfileIconName;
   colorSlot: ProfileColorSlot;
   visible: boolean;
+  /** Marca el perfil principal (no se puede eliminar y es el perfil por defecto en finanzas) */
+  isPrimary?: boolean;
+  /** Moneda preferida del perfil: Soles (PEN) o Dólares (USD) */
+  currency?: ProfileCurrency;
+  /** Correo electrónico para futuras notificaciones */
+  email?: string;
+  /** Teléfono / WhatsApp para futuras notificaciones */
+  phone?: string;
   /** Imagen personalizada (URL de Storage o data URL) subida por el usuario para identificar el perfil */
   customImage?: string;
 }
@@ -50,6 +60,8 @@ export interface CalendarEvent {
   recurrence: RecurrenceFrequency;
   reminderMinutes: number | null;
   completed?: boolean;
+  /** Fechas (YYYY-MM-DD) excluidas de un evento repetitivo */
+  excludedDates?: string[];
 }
 
 export interface ProjectedCalendarItem {

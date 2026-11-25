@@ -9,6 +9,8 @@ export interface RecurringBill {
   id: string;
   /** "expense" (por defecto) o "income" para ingresos recurrentes / puntuales */
   kind?: BillKind;
+  /** Perfil al que pertenece este ingreso o egreso (por defecto, el perfil principal) */
+  profileId?: string;
   name: string;
   provider?: string;
   visualIcon?: string;

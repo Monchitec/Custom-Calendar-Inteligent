@@ -41,7 +41,7 @@ export function EventPill({
       : item.source === "bill"
         ? item.billPaid
           ? "bg-success-soft/45 border border-success/35 border-l-4 border-l-success text-foreground"
-          : "bg-warning-soft/55 border border-warning/35 border-l-4 border-l-cat-bills text-foreground hover:brightness-98"
+          : cn("border-l-4 hover:brightness-98", slot.block)
         : cn("border-l-4 hover:brightness-96", slot.block);
 
   return (

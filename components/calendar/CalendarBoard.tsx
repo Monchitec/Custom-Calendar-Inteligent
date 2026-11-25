@@ -33,6 +33,10 @@ import { type CalendarFilterState, ProfileStrip } from "./ProfileStrip";
 import { DayDrawer } from "./DayDrawer";
 import { DayView } from "./DayView";
 import { ItemDetailModal } from "./ItemDetailModal";
+import {
+  ItemQuickPopover,
+  type PopoverAnchorRect,
+} from "./ItemQuickPopover";
 import { MonthGrid } from "./MonthGrid";
 import { WeeklyBoardView } from "./WeeklyBoardView";
 import { WeekView } from "./WeekView";
@@ -98,6 +102,35 @@ export function CalendarBoard() {
   const [activeItem, setActiveItem] = useState<ProjectedCalendarItem | null>(
     null,
   );
+  const [modalInitialEditing, setModalInitialEditing] = useState(false);
+  const [popoverState, setPopoverState] = useState<{
+    item: ProjectedCalendarItem;
+    rect: PopoverAnchorRect;
+  } | null>(null);
+
+  const handleSelectItem = (
+    item: ProjectedCalendarItem,
+    anchorEl?: HTMLElement | null,
+  ) => {
+    if (anchorEl) {
+      const r = anchorEl.getBoundingClientRect();
+      setPopoverState({
+        item,
+        rect: {
+          top: r.top,
+          left: r.left,
+          right: r.right,
+          bottom: r.bottom,
+          width: r.width,
+          height: r.height,
+        },
+      });
+      return;
+    }
+    setPopoverState(null);
+    setModalInitialEditing(false);
+    setActiveItem(item);
+  };
 
   const todayKey = clock.todayKey;
   const anchorKey = anchorKeyOverride ?? todayKey;
@@ -446,7 +479,7 @@ export function CalendarBoard() {
             itemsByDate={itemsByDate}
             onOpenDayDrawer={handleOpenDayDrawer}
             onQuickAddForDate={(key) => openQuickAdd("event", key)}
-            onSelectItem={setActiveItem}
+            onSelectItem={handleSelectItem}
           />
         )}
 
@@ -457,7 +490,7 @@ export function CalendarBoard() {
             itemsByDate={itemsByDate}
             nextWeekItems={nextWeekItems}
             onQuickAddForDate={(key) => openQuickAdd("event", key)}
-            onSelectItem={setActiveItem}
+            onSelectItem={handleSelectItem}
             onGoNextWeek={() => handleNavigate(1)}
           />
         )}
@@ -468,8 +501,10 @@ export function CalendarBoard() {
             todayKey={todayKey}
             itemsByDate={itemsByDate}
             onSelectDate={handleOpenDayDrawer}
-            onQuickAddForDate={(key) => openQuickAdd("event", key)}
-            onSelectItem={setActiveItem}
+            onQuickAddForDate={(key, startTime) =>
+              openQuickAdd("event", key, startTime)
+            }
+            onSelectItem={handleSelectItem}
           />
         )}
 
@@ -485,7 +520,7 @@ export function CalendarBoard() {
               setSelectedDateOverride(key);
             }}
             onQuickAddForDate={(key) => openQuickAdd("event", key)}
-            onSelectItem={setActiveItem}
+            onSelectItem={handleSelectItem}
           />
         )}
       </div>
@@ -501,10 +536,28 @@ export function CalendarBoard() {
           setView("day");
           setDrawerOpen(false);
         }}
-        onSelectItem={setActiveItem}
+        onSelectItem={(it) => handleSelectItem(it)}
       />
 
-      <ItemDetailModal item={activeItem} onClose={() => setActiveItem(null)} />
+      <ItemQuickPopover
+        item={popoverState?.item ?? null}
+        anchorRect={popoverState?.rect ?? null}
+        onClose={() => setPopoverState(null)}
+        onOpenFullModal={(it, startEditing) => {
+          setPopoverState(null);
+          setModalInitialEditing(startEditing);
+          setActiveItem(it);
+        }}
+      />
+
+      <ItemDetailModal
+        item={activeItem}
+        initialEditing={modalInitialEditing}
+        onClose={() => {
+          setActiveItem(null);
+          setModalInitialEditing(false);
+        }}
+      />
     </div>
   );
 }

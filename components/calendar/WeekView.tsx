@@ -19,8 +19,11 @@ interface WeekViewProps {
   todayKey: string;
   itemsByDate: Map<string, ProjectedCalendarItem[]>;
   onSelectDate: (dateKey: string) => void;
-  onQuickAddForDate: (dateKey: string) => void;
-  onSelectItem: (item: ProjectedCalendarItem) => void;
+  onQuickAddForDate: (dateKey: string, startTime?: string) => void;
+  onSelectItem: (
+    item: ProjectedCalendarItem,
+    anchorEl?: HTMLElement | null,
+  ) => void;
 }
 
 const START_HOUR = 7; // 07:00
@@ -131,7 +134,7 @@ export function WeekView({
   });
 
   return (
-    <div className="border-border bg-card flex flex-col overflow-hidden rounded-3xl border shadow-xs">
+    <div className="border-border bg-card relative flex flex-col overflow-hidden rounded-3xl border shadow-xs">
       {/* Encabezado de columnas estilo Dragon Touch (Imagen 1: Lun 23, Mar 24...) */}
       <div className="border-border bg-surface/60 grid grid-cols-[56px_repeat(7,minmax(125px,1fr))] border-b sm:grid-cols-[68px_repeat(7,minmax(0,1fr))]">
         <div className="border-border border-r" />
@@ -211,13 +214,15 @@ export function WeekView({
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => onSelectItem(item)}
+                      onClick={(e) => onSelectItem(item, e.currentTarget)}
                       className={cn(
                         "flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-left text-[11px] font-bold transition-all hover:brightness-97",
                         item.source === "task"
                           ? "border-border bg-card text-foreground border"
                           : item.source === "bill"
-                            ? "border-border bg-card text-foreground border"
+                            ? item.billPaid
+                              ? "border-success/35 border-l-success bg-success-soft/50 text-foreground border border-l-[3px]"
+                              : cn("border-l-[3px]", slot.block)
                             : cn("border-l-[3px]", slot.block),
                         isDone && "line-through opacity-60",
                       )}
@@ -237,7 +242,7 @@ export function WeekView({
                               "shrink-0 rounded px-1.5 py-px text-[10px] font-extrabold tabular-nums",
                               item.billPaid
                                 ? "bg-success-soft text-success"
-                                : "bg-warning-soft text-warning",
+                                : slot.badge,
                             )}
                           >
                             {formatCurrency(item.amount, item.currency, true)}
@@ -288,15 +293,29 @@ export function WeekView({
                   isToday ? "bg-primary-soft/15" : "bg-card",
                 )}
               >
-                {/* Líneas horarias de fondo clicables para agendar */}
-                {HOURS.map((hour) => (
-                  <div
-                    key={hour}
-                    onClick={() => onQuickAddForDate(key)}
-                    style={{ height: `${HOUR_HEIGHT_PX}px` }}
-                    className="border-border/55 hover:bg-card-hover/70 border-b transition-colors"
-                  />
-                ))}
+                {/* Líneas horarias divididas cada 30 minutos (doble clic para agendar en esa hora) */}
+                {HOURS.map((hour) => {
+                  const slot00 = `${pad2(hour)}:00`;
+                  const slot30 = `${pad2(hour)}:30`;
+                  return (
+                    <div
+                      key={hour}
+                      style={{ height: `${HOUR_HEIGHT_PX}px` }}
+                      className="border-border flex flex-col border-b"
+                    >
+                      <div
+                        onDoubleClick={() => onQuickAddForDate(key, slot00)}
+                        title={`Doble clic para agendar a las ${slot00}`}
+                        className="border-muted-foreground/25 hover:bg-card-hover/70 flex-1 border-b border-dashed transition-colors"
+                      />
+                      <div
+                        onDoubleClick={() => onQuickAddForDate(key, slot30)}
+                        title={`Doble clic para agendar a las ${slot30}`}
+                        className="hover:bg-card-hover/70 flex-1 transition-colors"
+                      />
+                    </div>
+                  );
+                })}
 
                 {/* Bloques de eventos y tareas posicionados según hora y duración (Imagen 1 con stickers visuales) */}
                 {positioned.map((block) => {
@@ -307,7 +326,7 @@ export function WeekView({
                     block.item.source,
                     block.item.visualIcon,
                   );
-                  const widthPct = 100 / block.totalCols;
+                  const widthPct = 90 / block.totalCols;
                   const leftPct = block.colIndex * widthPct;
 
                   const blockSurface =
@@ -321,13 +340,13 @@ export function WeekView({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onSelectItem(block.item);
+                        onSelectItem(block.item, e.currentTarget);
                       }}
                       style={{
                         top: `${block.topPx + 1}px`,
                         height: `${block.heightPx}px`,
                         left: `calc(${leftPct}% + 3px)`,
-                        width: `calc(${widthPct}% - 6px)`,
+                        width: `calc(${widthPct}% - 5px)`,
                       }}
                       className={cn(
                         "absolute z-10 flex cursor-pointer flex-col justify-between overflow-hidden rounded-xl px-2.5 py-1.5 text-left shadow-2xs transition-all hover:z-20 hover:shadow-md hover:brightness-97",
@@ -381,6 +400,17 @@ export function WeekView({
           })}
         </div>
       </div>
+
+      {/* Botón flotante fijo en la esquina inferior derecha de la pantalla */}
+      <button
+        type="button"
+        onClick={() => onQuickAddForDate(todayKey)}
+        aria-label="Nuevo evento"
+        title="Agregar nuevo evento"
+        className="bg-primary hover:bg-primary-hover text-primary-foreground focus-visible:ring-primary fixed right-6 bottom-6 z-40 flex h-14 w-14 cursor-pointer items-center justify-center rounded-full shadow-xl transition-all hover:scale-105 active:scale-95 focus-visible:ring-2 focus-visible:outline-none"
+      >
+        <Plus className="h-7 w-7" />
+      </button>
     </div>
   );
 }

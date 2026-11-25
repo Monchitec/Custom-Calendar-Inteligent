@@ -22,7 +22,10 @@ interface WeeklyBoardViewProps {
   itemsByDate: Map<string, ProjectedCalendarItem[]>;
   nextWeekItems: ProjectedCalendarItem[];
   onQuickAddForDate: (dateKey: string) => void;
-  onSelectItem: (item: ProjectedCalendarItem) => void;
+  onSelectItem: (
+    item: ProjectedCalendarItem,
+    anchorEl?: HTMLElement | null,
+  ) => void;
   onGoNextWeek: () => void;
 }
 
@@ -113,7 +116,7 @@ export function WeeklyBoardView({
                       key={item.id}
                       role="button"
                       tabIndex={0}
-                      onClick={() => onSelectItem(item)}
+                      onClick={(e) => onSelectItem(item, e.currentTarget)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
@@ -190,12 +193,12 @@ export function WeeklyBoardView({
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => onSelectItem(item)}
+                      onClick={(e) => onSelectItem(item, e.currentTarget)}
                       className={cn(
                         "group flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-l-4 px-3 py-2.5 text-left transition-all hover:shadow-xs hover:brightness-98",
                         item.billPaid
                           ? "border-success/35 border-l-success bg-success-soft/45 opacity-80"
-                          : "border-warning/35 border-l-cat-bills bg-warning-soft/55",
+                          : slot.block,
                       )}
                     >
                       <span className="bg-card/90 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl shadow-2xs">
@@ -231,7 +234,7 @@ export function WeeklyBoardView({
                                 "shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-extrabold tabular-nums",
                                 item.billPaid
                                   ? "bg-card/85 text-success"
-                                  : "bg-card/90 text-cat-bills shadow-2xs",
+                                  : cn("shadow-2xs", slot.badge),
                               )}
                             >
                               {formatCurrency(item.amount, item.currency, true)}
@@ -255,7 +258,7 @@ export function WeeklyBoardView({
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => onSelectItem(item)}
+                    onClick={(e) => onSelectItem(item, e.currentTarget)}
                     className={cn(
                       "group relative flex w-full cursor-pointer items-start gap-2.5 rounded-xl border-l-4 px-3 py-2.5 text-left transition-all hover:shadow-xs hover:brightness-97",
                       slot.block,
@@ -327,7 +330,7 @@ export function WeeklyBoardView({
               <button
                 key={item.id}
                 type="button"
-                onClick={() => onSelectItem(item)}
+                onClick={(e) => onSelectItem(item, e.currentTarget)}
                 className={cn(
                   "flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl border-l-4 px-3 py-2 text-left text-xs transition-all hover:brightness-97",
                   slot.block,

@@ -24,6 +24,10 @@ function toProfileRow(p: Profile, index = 0) {
     icon: p.icon,
     color_slot: p.colorSlot,
     visible: p.visible,
+    is_primary: Boolean(p.isPrimary),
+    currency: p.currency === "USD" ? "USD" : "PEN",
+    email: p.email ?? null,
+    phone: p.phone ?? null,
     custom_image: p.customImage ?? null,
     sort_order: index,
   };
@@ -36,6 +40,10 @@ function fromProfileRow(r: Record<string, unknown>): Profile {
     icon: r.icon as Profile["icon"],
     colorSlot: r.color_slot as Profile["colorSlot"],
     visible: Boolean(r.visible),
+    isPrimary: Boolean(r.is_primary),
+    currency: r.currency === "USD" ? "USD" : "PEN",
+    email: r.email ? String(r.email) : undefined,
+    phone: r.phone ? String(r.phone) : undefined,
     customImage: r.custom_image ? String(r.custom_image) : undefined,
   };
 }
@@ -55,6 +63,7 @@ function toEventRow(e: CalendarEvent) {
     recurrence: e.recurrence,
     reminder_minutes: e.reminderMinutes,
     completed: Boolean(e.completed),
+    excluded_dates: e.excludedDates ?? [],
   };
 }
 
@@ -76,6 +85,9 @@ function fromEventRow(r: Record<string, unknown>): CalendarEvent {
         ? null
         : Number(r.reminder_minutes),
     completed: Boolean(r.completed),
+    excludedDates: Array.isArray(r.excluded_dates)
+      ? (r.excluded_dates as string[])
+      : undefined,
   };
 }
 
@@ -139,6 +151,7 @@ function toBillRow(b: RecurringBill) {
   return {
     id: b.id,
     kind: b.kind ?? "expense",
+    profile_id: b.profileId ?? null,
     name: b.name,
     provider: b.provider ?? null,
     visual_icon: b.visualIcon ?? null,
@@ -159,6 +172,7 @@ function fromBillRow(r: Record<string, unknown>): RecurringBill {
   return {
     id: String(r.id),
     kind: r.kind === "income" ? "income" : "expense",
+    profileId: r.profile_id ? String(r.profile_id) : undefined,
     name: String(r.name),
     provider: r.provider ? String(r.provider) : undefined,
     visualIcon: r.visual_icon ? String(r.visual_icon) : undefined,
@@ -347,7 +361,25 @@ export async function seedAllCalendarTables(
 export async function dbUpsertProfile(profile: Profile, index = 0) {
   const client = getSupabaseBrowserClient();
   if (!client) return;
-  await client.from("profiles").upsert(toProfileRow(profile, index));
+  const row = toProfileRow(profile, index);
+  const { error } = await client.from("profiles").upsert(row);
+  if (!error) return;
+
+  // Fallback si faltan columnas nuevas (is_primary, currency, email, phone) en el schema cache
+  const fallbackRow: Record<string, unknown> = { ...row };
+  if (error.message.includes("is_primary")) delete fallbackRow.is_primary;
+  if (error.message.includes("currency")) delete fallbackRow.currency;
+  if (error.message.includes("email")) delete fallbackRow.email;
+  if (error.message.includes("phone")) delete fallbackRow.phone;
+  if (Object.keys(fallbackRow).length < Object.keys(row).length) {
+    console.warn("[Supabase dbUpsertProfile fallback]", error.message);
+    const retry = await client.from("profiles").upsert(fallbackRow);
+    if (retry.error) {
+      console.error("[Supabase dbUpsertProfile retry]", retry.error.message);
+    }
+    return;
+  }
+  console.error("[Supabase dbUpsertProfile]", error.message);
 }
 
 export async function dbDeleteProfile(id: string) {
@@ -359,7 +391,21 @@ export async function dbDeleteProfile(id: string) {
 export async function dbUpsertEvent(event: CalendarEvent) {
   const client = getSupabaseBrowserClient();
   if (!client) return;
-  await client.from("events").upsert(toEventRow(event));
+  const row = toEventRow(event);
+  const { error } = await client.from("events").upsert(row);
+  if (!error) return;
+
+  if (error.message.includes("excluded_dates")) {
+    console.warn("[Supabase dbUpsertEvent fallback]", error.message);
+    const fallbackRow: Record<string, unknown> = { ...row };
+    delete fallbackRow.excluded_dates;
+    const retry = await client.from("events").upsert(fallbackRow);
+    if (retry.error) {
+      console.error("[Supabase dbUpsertEvent retry]", retry.error.message);
+    }
+    return;
+  }
+  console.error("[Supabase dbUpsertEvent]", error.message);
 }
 
 export async function dbDeleteEvent(id: string) {
@@ -408,6 +454,9 @@ export async function dbUpsertBill(bill: RecurringBill) {
   }
   if (error.message.includes("kind")) {
     delete fallbackRow.kind;
+  }
+  if (error.message.includes("profile_id")) {
+    delete fallbackRow.profile_id;
   }
   if (Object.keys(fallbackRow).length < Object.keys(row).length) {
     const retry = await client.from("bills").upsert(fallbackRow);

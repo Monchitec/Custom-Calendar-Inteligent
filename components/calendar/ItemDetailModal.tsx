@@ -59,21 +59,32 @@ const LABEL_CLASS =
 
 export function ItemDetailModal({
   item,
+  initialEditing = false,
   onClose,
 }: {
   item: ProjectedCalendarItem | null;
+  initialEditing?: boolean;
   onClose: () => void;
 }) {
   if (!item) return null;
 
-  return <ItemDetailModalInner key={item.id} item={item} onClose={onClose} />;
+  return (
+    <ItemDetailModalInner
+      key={`${item.id}:${initialEditing ? "edit" : "view"}`}
+      item={item}
+      initialEditing={initialEditing}
+      onClose={onClose}
+    />
+  );
 }
 
 function ItemDetailModalInner({
   item,
+  initialEditing,
   onClose,
 }: {
   item: ProjectedCalendarItem;
+  initialEditing: boolean;
   onClose: () => void;
 }) {
   const {
@@ -81,6 +92,7 @@ function ItemDetailModalInner({
     events,
     bills,
     tasks,
+    addEvent,
     updateEvent,
     deleteEvent,
     toggleBillPaid,
@@ -101,9 +113,12 @@ function ItemDetailModalInner({
       ? tasks.find((t) => t.id === item.sourceId)
       : undefined;
 
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(initialEditing);
+  const [scopePrompt, setScopePrompt] = useState<"save" | "delete" | null>(
+    null,
+  );
   const [title, setTitle] = useState(sourceEvent?.title ?? item.title);
-  const [date, setDate] = useState(sourceEvent?.date ?? item.date);
+  const [date, setDate] = useState(item.date);
   const [allDay, setAllDay] = useState(sourceEvent?.allDay ?? item.allDay);
   const [startTime, setStartTime] = useState(sourceEvent?.startTime ?? "09:00");
   const [endTime, setEndTime] = useState(sourceEvent?.endTime ?? "10:00");
@@ -124,29 +139,81 @@ function ItemDetailModalInner({
 
   const slot = getProfileSlotClasses(item.colorSlot);
 
-  const handleSaveEdit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!sourceEvent || !title.trim()) return;
-    const resolvedRecurrence: RecurrenceFrequency =
-      recurrence === "custom"
-        ? customDays.length > 0
-          ? encodeCustomRecurrenceDays(customDays)
-          : "none"
-        : (recurrence as RecurrenceFrequency);
+  const isRecurringEvent = Boolean(
+    sourceEvent && sourceEvent.recurrence !== "none",
+  );
 
+  const resolveEditedRecurrence = (): RecurrenceFrequency =>
+    recurrence === "custom"
+      ? customDays.length > 0
+        ? encodeCustomRecurrenceDays(customDays)
+        : "none"
+      : (recurrence as RecurrenceFrequency);
+
+  const applySaveAllSeries = () => {
+    if (!sourceEvent || !title.trim()) return;
     updateEvent(sourceEvent.id, {
+      title: title.trim(),
+      date: date === item.date ? sourceEvent.date : date,
+      allDay,
+      startTime: allDay ? undefined : startTime,
+      endTime: allDay ? undefined : endTime,
+      profileId,
+      location: location.trim() || undefined,
+      recurrence: resolveEditedRecurrence(),
+      notes: notes.trim() || undefined,
+    });
+    setScopePrompt(null);
+    setEditing(false);
+    onClose();
+  };
+
+  const applySaveSingleOccurrence = () => {
+    if (!sourceEvent || !title.trim()) return;
+    const prevExcluded = sourceEvent.excludedDates ?? [];
+    if (!prevExcluded.includes(item.date)) {
+      updateEvent(sourceEvent.id, {
+        excludedDates: [...prevExcluded, item.date],
+      });
+    }
+    addEvent({
       title: title.trim(),
       date,
       allDay,
       startTime: allDay ? undefined : startTime,
       endTime: allDay ? undefined : endTime,
       profileId,
+      visualIcon: sourceEvent.visualIcon,
       location: location.trim() || undefined,
-      recurrence: resolvedRecurrence,
       notes: notes.trim() || undefined,
+      recurrence: "none",
+      reminderMinutes: sourceEvent.reminderMinutes,
     });
+    setScopePrompt(null);
     setEditing(false);
     onClose();
+  };
+
+  const applyDeleteSingleOccurrence = () => {
+    if (!sourceEvent) return;
+    const prevExcluded = sourceEvent.excludedDates ?? [];
+    if (!prevExcluded.includes(item.date)) {
+      updateEvent(sourceEvent.id, {
+        excludedDates: [...prevExcluded, item.date],
+      });
+    }
+    setScopePrompt(null);
+    onClose();
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sourceEvent || !title.trim()) return;
+    if (isRecurringEvent) {
+      setScopePrompt("save");
+      return;
+    }
+    applySaveAllSeries();
   };
 
   const billOccurrenceKey = sourceBill
@@ -170,7 +237,75 @@ function ItemDetailModalInner({
   };
 
   const modalFooter =
-    editing && sourceEvent ? (
+    scopePrompt === "save" && sourceEvent ? (
+      <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <span className="text-muted-foreground text-xs font-semibold">
+          ¿Aplicar cambios a:
+        </span>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setScopePrompt(null)}
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={applySaveSingleOccurrence}
+          >
+            Solo este evento ({formatDateWithWeekday(item.date)})
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            onClick={applySaveAllSeries}
+          >
+            Toda la serie
+          </Button>
+        </div>
+      </div>
+    ) : scopePrompt === "delete" && sourceEvent ? (
+      <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <span className="text-muted-foreground text-xs font-semibold">
+          ¿Qué deseas eliminar?
+        </span>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setScopePrompt(null)}
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={applyDeleteSingleOccurrence}
+          >
+            Solo este día ({formatDateWithWeekday(item.date)})
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            size="sm"
+            onClick={() => {
+              deleteEvent(sourceEvent.id);
+              setScopePrompt(null);
+              onClose();
+            }}
+          >
+            Toda la serie
+          </Button>
+        </div>
+      </div>
+    ) : editing && sourceEvent ? (
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={() => setEditing(false)}>
           Volver
@@ -187,6 +322,10 @@ function ItemDetailModalInner({
               variant="danger"
               size="sm"
               onClick={() => {
+                if (isRecurringEvent) {
+                  setScopePrompt("delete");
+                  return;
+                }
                 deleteEvent(sourceEvent.id);
                 onClose();
               }}

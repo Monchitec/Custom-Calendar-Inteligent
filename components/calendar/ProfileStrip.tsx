@@ -75,7 +75,6 @@ export function ProfileStrip({
   for (const item of unfilteredItems) {
     if (item.source === "bill") {
       billsTotal += 1;
-      continue;
     }
     if (item.source === "task") {
       tasksTotal += 1;

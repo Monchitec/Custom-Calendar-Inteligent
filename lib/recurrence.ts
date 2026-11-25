@@ -83,6 +83,17 @@ export function projectEventOccurrences(
   rangeStartKey: string,
   rangeEndKey: string,
 ): string[] {
+  const raw = projectEventOccurrencesRaw(event, rangeStartKey, rangeEndKey);
+  if (!event.excludedDates || event.excludedDates.length === 0) return raw;
+  const excluded = new Set(event.excludedDates);
+  return raw.filter((d) => !excluded.has(d));
+}
+
+function projectEventOccurrencesRaw(
+  event: CalendarEvent,
+  rangeStartKey: string,
+  rangeEndKey: string,
+): string[] {
   const results: string[] = [];
   if (event.date > rangeEndKey) return results;
 
@@ -355,8 +366,14 @@ export function buildProjectedCalendarItems(params: {
   }
 
   if (includeBills) {
+    const defaultProfile =
+      profiles.find((p) => p.isPrimary) ?? profiles[0];
     for (const bill of bills) {
       if (bill.kind === "income") continue;
+      const billProfile =
+        (bill.profileId ? profileMap.get(bill.profileId) : undefined) ??
+        defaultProfile;
+      if (billProfile && !billProfile.visible) continue;
       const occs = projectBillOccurrences(bill, rangeStartKey, rangeEndKey);
       for (const occ of occs) {
         items.push({
@@ -366,12 +383,12 @@ export function buildProjectedCalendarItems(params: {
           title: bill.name,
           date: occ.dueDate,
           allDay: true,
-          colorSlot: "cat-bills",
-          profileId: "__bills__",
-          profileLabel: "Pagos",
+          colorSlot: billProfile?.colorSlot ?? "cat-bills",
+          profileId: billProfile?.id ?? "__bills__",
+          profileLabel: billProfile?.name ?? "Pagos",
           visualIcon: bill.visualIcon,
           amount: bill.amount,
-          currency: bill.currency,
+          currency: billProfile?.currency ?? bill.currency,
           billPaid: occ.isPaid,
           notes: bill.provider ? `Proveedor: ${bill.provider}` : bill.notes,
         });

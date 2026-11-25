@@ -20,6 +20,7 @@ interface BillFormModalProps {
   open: boolean;
   editingBill: RecurringBill | null;
   defaultKind?: BillKind;
+  defaultProfileId?: string;
   onClose: () => void;
 }
 
@@ -27,14 +28,16 @@ export function BillFormModal({
   open,
   editingBill,
   defaultKind = "expense",
+  defaultProfileId,
   onClose,
 }: BillFormModalProps) {
   if (!open) return null;
   return (
     <BillFormModalInner
-      key={`${editingBill?.id ?? "new"}:${editingBill?.kind ?? defaultKind}`}
+      key={`${editingBill?.id ?? "new"}:${editingBill?.kind ?? defaultKind}:${editingBill?.profileId ?? defaultProfileId ?? ""}`}
       editingBill={editingBill}
       defaultKind={defaultKind}
+      defaultProfileId={defaultProfileId}
       onClose={onClose}
     />
   );
@@ -43,15 +46,22 @@ export function BillFormModal({
 function BillFormModalInner({
   editingBill,
   defaultKind,
+  defaultProfileId,
   onClose,
 }: {
   editingBill: RecurringBill | null;
   defaultKind: BillKind;
+  defaultProfileId?: string;
   onClose: () => void;
 }) {
-  const { addBill, updateBill, preferences } = useCalendarData();
+  const { profiles, addBill, updateBill, preferences } = useCalendarData();
+  const primaryProfileId =
+    profiles.find((p) => p.isPrimary)?.id ?? profiles[0]?.id ?? "";
 
   const [kind, setKind] = useState<BillKind>(editingBill?.kind ?? defaultKind);
+  const [profileId, setProfileId] = useState<string>(
+    editingBill?.profileId ?? defaultProfileId ?? primaryProfileId,
+  );
   const [name, setName] = useState(editingBill?.name ?? "");
   const [provider, setProvider] = useState(editingBill?.provider ?? "");
   const [amount, setAmount] = useState(
@@ -72,6 +82,12 @@ function BillFormModalInner({
   const [visualIcon, setVisualIcon] = useState(editingBill?.visualIcon ?? "");
   const [error, setError] = useState("");
 
+  const selectedProfile = profiles.find(
+    (p) => p.id === (profileId || primaryProfileId),
+  );
+  const selectedCurrency =
+    selectedProfile?.currency ?? editingBill?.currency ?? "PEN";
+
   const isIncome = kind === "income";
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -84,11 +100,12 @@ function BillFormModalInner({
 
     const payload = {
       kind,
+      profileId: profileId || primaryProfileId || undefined,
       name: name.trim(),
       provider: provider.trim() || undefined,
       visualIcon: visualIcon || undefined,
       amount: num,
-      currency: "PEN",
+      currency: selectedCurrency,
       dueDay: Math.min(31, Math.max(1, Number(dueDay) || 1)),
       startDate: editingBill?.startDate ?? toDateKey(new Date()),
       frequency,
@@ -178,6 +195,28 @@ function BillFormModalInner({
           </button>
         </div>
 
+        {/* Selector de Perfil */}
+        {profiles.length > 0 && (
+          <div>
+            <label htmlFor="bf-profile" className={LABEL_CLASS}>
+              Perfil
+            </label>
+            <select
+              id="bf-profile"
+              value={profileId || primaryProfileId}
+              onChange={(e) => setProfileId(e.target.value)}
+              className={INPUT_CLASS}
+            >
+              {profiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                  {p.id === primaryProfileId ? " (Principal)" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="bf-name" className={LABEL_CLASS}>
@@ -219,7 +258,7 @@ function BillFormModalInner({
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div>
             <label htmlFor="bf-amount" className={LABEL_CLASS}>
-              Monto (S/)
+              Monto ({selectedCurrency === "USD" ? "$" : "S/"})
             </label>
             <input
               id="bf-amount"

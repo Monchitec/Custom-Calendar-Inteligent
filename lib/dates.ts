@@ -163,17 +163,19 @@ export function formatCurrency(
   currency = "PEN",
   compact = false,
 ): string {
-  const normalizedCurrency = !currency || currency === "USD" ? "PEN" : currency;
+  const normalizedCurrency = currency === "USD" ? "USD" : "PEN";
+  const locale = normalizedCurrency === "USD" ? "en-US" : "es-PE";
   const fractionDigits = compact && Number.isInteger(amount) ? 0 : 2;
   try {
-    return new Intl.NumberFormat("es-PE", {
+    return new Intl.NumberFormat(locale, {
       style: "currency",
       currency: normalizedCurrency,
       minimumFractionDigits: fractionDigits,
       maximumFractionDigits: 2,
     }).format(amount);
   } catch {
-    return `S/ ${amount.toFixed(fractionDigits)}`;
+    const symbol = normalizedCurrency === "USD" ? "$" : "S/ ";
+    return `${symbol}${amount.toFixed(fractionDigits)}`;
   }
 }
 

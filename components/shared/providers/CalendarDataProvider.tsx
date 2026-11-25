@@ -63,6 +63,7 @@ export interface QuickAddState {
   open: boolean;
   tab: QuickAddTab;
   defaultDate?: string;
+  defaultTime?: string;
 }
 
 export interface RingingAlarm {
@@ -95,7 +96,11 @@ interface CalendarDataContextValue {
   activeReminder: ActiveReminderPopup | null;
   quickAdd: QuickAddState;
 
-  openQuickAdd: (tab?: QuickAddTab, defaultDate?: string) => void;
+  openQuickAdd: (
+    tab?: QuickAddTab,
+    defaultDate?: string,
+    defaultTime?: string,
+  ) => void;
   closeQuickAdd: () => void;
 
   setShowBillsOnCalendar: (value: boolean) => void;
@@ -103,6 +108,7 @@ interface CalendarDataContextValue {
 
   addProfile: (profile: Omit<Profile, "id">) => void;
   updateProfile: (id: string, patch: Partial<Omit<Profile, "id">>) => void;
+  setPrimaryProfile: (id: string) => void;
   deleteProfile: (id: string) => void;
   toggleProfileVisibility: (id: string) => void;
   showAllProfiles: () => void;
@@ -504,8 +510,8 @@ export function CalendarDataProvider({
   }, [hydrated, state.alarms, state.events, state.tasks, state.preferences]);
 
   const openQuickAdd = useCallback(
-    (tab: QuickAddTab = "event", defaultDate?: string) => {
-      setQuickAdd({ open: true, tab, defaultDate });
+    (tab: QuickAddTab = "event", defaultDate?: string, defaultTime?: string) => {
+      setQuickAdd({ open: true, tab, defaultDate, defaultTime });
     },
     [],
   );
@@ -553,44 +559,65 @@ export function CalendarDataProvider({
     [],
   );
 
+  const setPrimaryProfile = useCallback((id: string) => {
+    const cur = stateRef.current;
+    if (!cur.profiles.some((p) => p.id === id)) return;
+    const updatedProfiles = cur.profiles.map((p) => ({
+      ...p,
+      isPrimary: p.id === id,
+    }));
+    setState((prev) => ({
+      ...prev,
+      profiles: updatedProfiles,
+    }));
+    updatedProfiles.forEach((p, idx) => void dbUpsertProfile(p, idx));
+  }, []);
+
   const deleteProfile = useCallback((id: string) => {
     const cur = stateRef.current;
     if (cur.profiles.length <= 1) return;
+    const primaryId =
+      cur.profiles.find((p) => p.isPrimary)?.id ?? cur.profiles[0]?.id;
+    if (id === primaryId) return;
+
     const targetProfile = cur.profiles.find((p) => p.id === id);
     if (targetProfile?.customImage) {
       void deleteIconFromSupabase(targetProfile.customImage);
     }
-    const remaining = cur.profiles.filter((p) => p.id !== id);
-    const fallbackId = remaining[0]?.id ?? "";
 
-    const movedEvents = cur.events
-      .filter((e) => e.profileId === id)
-      .map((e) => ({ ...e, profileId: fallbackId }));
-    const movedTasks = cur.tasks
-      .filter((t) => t.profileId === id)
-      .map((t) => ({ ...t, profileId: fallbackId }));
-    const movedChecklists = cur.checklists
-      .filter((cl) => cl.profileId === id)
-      .map((cl) => ({ ...cl, profileId: fallbackId }));
+    const removedEvents = cur.events.filter((e) => e.profileId === id);
+    const removedTasks = cur.tasks.filter((t) => t.profileId === id);
+    const removedChecklists = cur.checklists.filter((cl) => cl.profileId === id);
+    const removedBills = cur.bills.filter((b) => b.profileId === id);
+    const removedAlarms = cur.alarms.filter((a) => a.profileId === id);
+
+    const remaining = cur.profiles.filter((p) => p.id !== id);
 
     setState((prev) => ({
       ...prev,
       profiles: remaining,
-      events: prev.events.map((e) =>
-        e.profileId === id ? { ...e, profileId: fallbackId } : e,
-      ),
-      tasks: prev.tasks.map((t) =>
-        t.profileId === id ? { ...t, profileId: fallbackId } : t,
-      ),
-      checklists: prev.checklists.map((cl) =>
-        cl.profileId === id ? { ...cl, profileId: fallbackId } : cl,
-      ),
+      events: prev.events.filter((e) => e.profileId !== id),
+      tasks: prev.tasks.filter((t) => t.profileId !== id),
+      checklists: prev.checklists.filter((cl) => cl.profileId !== id),
+      bills: prev.bills.filter((b) => b.profileId !== id),
+      alarms: prev.alarms.filter((a) => a.profileId !== id),
     }));
 
     void dbDeleteProfile(id);
-    movedEvents.forEach((e) => void dbUpsertEvent(e));
-    movedTasks.forEach((t) => void dbUpsertTask(t));
-    movedChecklists.forEach((cl) => void dbUpsertChecklist(cl));
+    removedEvents.forEach((e) => {
+      if (e.visualIcon) void deleteIconFromSupabase(e.visualIcon);
+      void dbDeleteEvent(e.id);
+    });
+    removedTasks.forEach((t) => {
+      if (t.visualIcon) void deleteIconFromSupabase(t.visualIcon);
+      void dbDeleteTask(t.id);
+    });
+    removedChecklists.forEach((cl) => void dbDeleteChecklist(cl.id));
+    removedBills.forEach((b) => {
+      if (b.visualIcon) void deleteIconFromSupabase(b.visualIcon);
+      void dbDeleteBill(b.id);
+    });
+    removedAlarms.forEach((a) => void dbDeleteAlarm(a.id));
   }, []);
 
   const toggleProfileVisibility = useCallback((id: string) => {
@@ -627,19 +654,9 @@ export function CalendarDataProvider({
   const addEvent = useCallback((event: Omit<CalendarEvent, "id">) => {
     const id = generateId("evt");
     const created: CalendarEvent = { ...event, id };
-    const notif: NotificationItem = {
-      id: generateId("ntf"),
-      title: "Evento agendado",
-      body: `${event.title} · ${event.date}${event.startTime ? ` a las ${event.startTime}` : ""}`,
-      timestamp: new Date().toISOString(),
-      read: true,
-      kind: "event",
-      link: "/",
-    };
     setState((prev) => ({
       ...prev,
       events: [...prev.events, created],
-      notifications: [notif, ...prev.notifications].slice(0, 40),
     }));
     void (async () => {
       let finalEvent = created;
@@ -653,7 +670,6 @@ export function CalendarDataProvider({
       }
       await dbUpsertEvent(finalEvent);
     })();
-    void dbInsertNotification(notif);
   }, []);
 
   const updateEvent = useCallback(
@@ -1114,6 +1130,7 @@ export function CalendarDataProvider({
       setShowTasksOnCalendar,
       addProfile,
       updateProfile,
+      setPrimaryProfile,
       deleteProfile,
       toggleProfileVisibility,
       showAllProfiles,
@@ -1163,6 +1180,7 @@ export function CalendarDataProvider({
       setShowTasksOnCalendar,
       addProfile,
       updateProfile,
+      setPrimaryProfile,
       deleteProfile,
       toggleProfileVisibility,
       showAllProfiles,
