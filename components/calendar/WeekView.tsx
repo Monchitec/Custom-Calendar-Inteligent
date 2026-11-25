@@ -17,7 +17,6 @@ import type { ProjectedCalendarItem } from "@/types/calendar";
 interface WeekViewProps {
   anchorDate: Date;
   todayKey: string;
-  selectedDateKey: string;
   itemsByDate: Map<string, ProjectedCalendarItem[]>;
   onSelectDate: (dateKey: string) => void;
   onQuickAddForDate: (dateKey: string) => void;
@@ -117,7 +116,6 @@ function layoutTimedBlocks(items: ProjectedCalendarItem[]): PositionedBlock[] {
 export function WeekView({
   anchorDate,
   todayKey,
-  selectedDateKey,
   itemsByDate,
   onSelectDate,
   onQuickAddForDate,
@@ -140,7 +138,6 @@ export function WeekView({
         {weekDays.map((day, idx) => {
           const key = toDateKey(day);
           const isToday = key === todayKey;
-          const isSelected = key === selectedDateKey;
 
           return (
             <div
@@ -149,7 +146,6 @@ export function WeekView({
               className={cn(
                 "group border-border hover:bg-card-hover relative flex cursor-pointer items-center justify-center gap-2 border-r px-2 py-3.5 transition-colors last:border-r-0",
                 isToday && "bg-primary-soft/45",
-                isSelected && !isToday && "bg-muted/40",
               )}
             >
               <span

@@ -8,14 +8,11 @@ import {
   ChevronRight,
   Columns3,
   LayoutGrid,
-  Moon,
   Plus,
   Search,
-  Sun,
 } from "lucide-react";
 import { NotificationPopover } from "@/components/shared/layout/NotificationPopover";
 import { useCalendarData } from "@/components/shared/providers/CalendarDataProvider";
-import { useTheme } from "@/components/shared/providers/ThemeProvider";
 import { Button } from "@/components/shared/ui/Button";
 import { useClock } from "@/hooks/useClock";
 import { cn } from "@/lib/cn";
@@ -26,6 +23,7 @@ import {
   daysInMonth,
   formatMonthYear,
   formatShortDate,
+  getMonthGridDays,
   getWeekDays,
   parseDateKey,
   toDateKey,
@@ -34,7 +32,6 @@ import { buildProjectedCalendarItems } from "@/lib/recurrence";
 import type { CalendarView, ProjectedCalendarItem } from "@/types/calendar";
 import { type CalendarFilterState, ProfileStrip } from "./ProfileStrip";
 import { DayDrawer } from "./DayDrawer";
-import { DaySidePanel } from "./DaySidePanel";
 import { DayView } from "./DayView";
 import { ItemDetailModal } from "./ItemDetailModal";
 import { MonthGrid } from "./MonthGrid";
@@ -46,10 +43,10 @@ const VIEW_TABS: Array<{
   label: string;
   icon: typeof CalendarDays;
 }> = [
-  { id: "agenda", label: "Mi Agenda", icon: LayoutGrid },
-  { id: "month", label: "Mes", icon: CalendarDays },
-  { id: "week", label: "Semana", icon: Columns3 },
   { id: "day", label: "Día", icon: CalendarClock },
+  { id: "week", label: "Semana", icon: Columns3 },
+  { id: "month", label: "Mes", icon: CalendarDays },
+  { id: "agenda", label: "Agenda", icon: LayoutGrid },
 ];
 
 function matchesCalendarFilter(
@@ -71,11 +68,18 @@ function matchesCalendarFilter(
 
 export function CalendarBoard() {
   const clock = useClock();
-  const { config, toggleMode } = useTheme();
-  const { hydrated, profiles, events, bills, tasks, checklists, openQuickAdd } =
-    useCalendarData();
+  const {
+    hydrated,
+    profiles,
+    events,
+    bills,
+    tasks,
+    checklists,
+    quickAdd,
+    openQuickAdd,
+  } = useCalendarData();
 
-  const [view, setView] = useState<CalendarView>("month");
+  const [view, setView] = useState<CalendarView>("day");
   const [filter, setFilter] = useState<CalendarFilterState>({ mode: "all" });
   const [anchorKeyOverride, setAnchorKeyOverride] = useState<string | null>(
     null,
@@ -84,6 +88,13 @@ export function CalendarBoard() {
     string | null
   >(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [prevQuickAddOpen, setPrevQuickAddOpen] = useState(quickAdd.open);
+  if (quickAdd.open !== prevQuickAddOpen) {
+    setPrevQuickAddOpen(quickAdd.open);
+    if (quickAdd.open) {
+      setDrawerOpen(false);
+    }
+  }
   const [searchQuery, setSearchQuery] = useState("");
   const [activeItem, setActiveItem] = useState<ProjectedCalendarItem | null>(
     null,
@@ -115,7 +126,7 @@ export function CalendarBoard() {
         periodLabel: formatMonthYear(anchorDate),
       };
     }
-    if (view === "agenda") {
+    if (view === "week") {
       const start = toDateKey(anchorDate);
       const end = toDateKey(addDays(anchorDate, 6));
       const nwStart = toDateKey(addDays(anchorDate, 7));
@@ -128,7 +139,7 @@ export function CalendarBoard() {
         periodLabel: `${formatShortDate(start)} – ${formatShortDate(end)}`,
       };
     }
-    if (view === "week") {
+    if (view === "agenda") {
       const days = getWeekDays(anchorDate);
       const start = toDateKey(days[0]);
       const end = toDateKey(days[6]);
@@ -142,9 +153,13 @@ export function CalendarBoard() {
         periodLabel: `${formatShortDate(start)} – ${formatShortDate(end)}`,
       };
     }
+    const days = getMonthGridDays(
+      anchorDate.getFullYear(),
+      anchorDate.getMonth(),
+    );
     return {
-      rangeStartKey: anchorKey,
-      rangeEndKey: anchorKey,
+      rangeStartKey: toDateKey(days[0]),
+      rangeEndKey: toDateKey(days[days.length - 1]),
       nextWeekStartKey: anchorKey,
       nextWeekEndKey: anchorKey,
       periodLabel: formatShortDate(anchorKey),
@@ -247,28 +262,174 @@ export function CalendarBoard() {
   };
 
   const handleGoToday = () => {
-    setAnchorKeyOverride(todayKey);
-    setSelectedDateOverride(todayKey);
+    setAnchorKeyOverride(null);
+    setSelectedDateOverride(null);
   };
 
   const handleOpenDayDrawer = (dateKey: string) => {
     setSelectedDateOverride(dateKey);
-    setDrawerOpen(true);
+    setAnchorKeyOverride(dateKey);
+    setView("day");
+    setDrawerOpen(false);
   };
 
-  const isAwayFromToday = anchorKey !== todayKey;
+  const isAwayFromToday =
+    view === "month"
+      ? anchorKey.slice(0, 7) !== todayKey.slice(0, 7)
+      : view === "week" || view === "agenda"
+        ? todayKey < rangeStartKey || todayKey > rangeEndKey
+        : anchorKey !== todayKey;
 
   return (
     <div className="flex flex-1 flex-col">
-      {/* Cabecera responsiva: 3 zonas en escritorio (Nuevo registro + periodo izq | Fecha/Hora centro | Vistas + buscar + campana der) */}
-      <header className="border-border bg-card/95 sticky top-0 z-30 border-b px-2.5 py-2 backdrop-blur-md sm:px-6 sm:py-2.5">
-        <div className="flex flex-col gap-2 md:grid md:grid-cols-[1fr_auto_1fr] md:items-center md:gap-3">
-          {/* Bloque izquierdo desktop: Nuevo registro + navegación de periodo / Fila 1 móvil */}
-          <div className="flex items-center justify-between gap-2 md:justify-start md:gap-2.5">
+      {/* Cabecera responsiva en 1 sola fila tanto en móvil como en escritorio */}
+      <header className="border-border bg-card/95 sticky top-0 z-30 border-b px-2 py-2 backdrop-blur-md sm:px-6 sm:py-2.5">
+        <div className="flex items-center justify-between gap-1.5 md:gap-3">
+          {/* Bloque izquierdo: Hora (en sm+) + navegación de periodo */}
+          <div className="flex min-w-0 items-center gap-1 sm:gap-2.5">
+            <button
+              type="button"
+              onClick={handleGoToday}
+              title="Ir a hoy"
+              className="hidden cursor-pointer items-center text-left transition-opacity hover:opacity-80 sm:flex"
+            >
+              <span className="text-primary font-mono text-base font-extrabold whitespace-nowrap tabular-nums lg:text-xl">
+                {clock.ready ? `${clock.timeShort} ${clock.period}` : "--:--"}
+              </span>
+            </button>
+
+            <span
+              className="bg-border hidden h-5 w-px sm:inline-block"
+              aria-hidden="true"
+            />
+
+            {/* Navegación de periodo */}
+            <div className="flex min-w-0 items-center gap-0.5">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleNavigate(-1)}
+                aria-label="Periodo anterior"
+                className="h-7 w-7 shrink-0 rounded-lg sm:h-8 sm:w-8 sm:rounded-xl"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-foreground truncate px-0.5 text-center text-xs font-extrabold whitespace-nowrap sm:min-w-28 sm:px-1 sm:text-sm md:text-base">
+                {periodLabel}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleNavigate(1)}
+                aria-label="Periodo siguiente"
+                className="h-7 w-7 shrink-0 rounded-lg sm:h-8 sm:w-8 sm:rounded-xl"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              {isAwayFromToday && (
+                <Button
+                  variant="soft"
+                  size="sm"
+                  onClick={handleGoToday}
+                  title="Volver a la fecha de hoy"
+                  className="ml-0.5 min-h-7 shrink-0 px-2 py-0.5 text-[11px] whitespace-nowrap sm:ml-1 sm:min-h-8 sm:px-2.5 sm:py-1 sm:text-xs"
+                >
+                  Volver Hoy
+                </Button>
+              )}
+            </div>
+
+            <div
+              role="tablist"
+              aria-label="Vista del calendario"
+              className="border-border bg-surface hidden rounded-xl border p-0.5 sm:flex sm:rounded-2xl sm:p-1"
+            >
+              {VIEW_TABS.map((tab) => {
+                const Icon = tab.icon;
+                const active = view === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    aria-label={`Vista ${tab.label}`}
+                    title={tab.label}
+                    onClick={() => {
+                      setView(tab.id);
+                    }}
+                    className={cn(
+                      "flex h-7 w-7 cursor-pointer items-center justify-center gap-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all sm:h-8 sm:w-8 md:w-auto md:rounded-xl md:px-2.5 lg:px-3",
+                      active
+                        ? "bg-primary text-primary-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <Icon
+                      className="h-3.5 w-3.5 sm:h-4 sm:w-4 md:hidden"
+                      aria-hidden="true"
+                    />
+                    <span className="hidden md:inline">{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Bloque derecho: Vistas (en móvil) + Buscador + Nuevo registro (+ en móvil) + Campana */}
+          <div className="flex shrink-0 items-center gap-1.5 md:gap-2">
+            <div
+              role="tablist"
+              aria-label="Vista del calendario"
+              className="border-border bg-surface flex rounded-xl border p-0.5 sm:hidden"
+            >
+              {VIEW_TABS.map((tab) => {
+                const Icon = tab.icon;
+                const active = view === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    aria-label={`Vista ${tab.label}`}
+                    title={tab.label}
+                    onClick={() => {
+                      setView(tab.id);
+                    }}
+                    className={cn(
+                      "flex h-7 w-7 cursor-pointer items-center justify-center gap-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all",
+                      active
+                        ? "bg-primary text-primary-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="relative hidden xl:block">
+              <Search
+                className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2"
+                aria-hidden="true"
+              />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar..."
+                aria-label="Buscar en el calendario"
+                className="border-border bg-background text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/25 h-9 w-32 rounded-xl border pr-3 pl-8 text-xs transition-all focus:w-44 focus:ring-2 focus:outline-none"
+              />
+            </div>
+
             <Button
               variant="primary"
               size="sm"
               onClick={() => openQuickAdd("event", selectedDateKey)}
+              aria-label="Nuevo registro"
               className="min-h-8 shrink-0 px-2.5 py-1 text-xs md:min-h-9 md:px-3.5"
             >
               <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" />
@@ -276,187 +437,7 @@ export function CalendarBoard() {
               <span className="hidden md:inline">Nuevo registro</span>
             </Button>
 
-            {/* Fecha y hora centrada en Fila 1 móvil (< md) */}
-            <button
-              type="button"
-              onClick={handleGoToday}
-              title="Ir a hoy"
-              className="flex cursor-pointer items-baseline justify-center gap-1.5 text-center transition-opacity hover:opacity-80 md:hidden"
-            >
-              <span className="text-foreground text-base font-extrabold tracking-tight">
-                {clock.ready ? formatShortDate(todayKey) : "Calendario"}
-              </span>
-              <span className="text-primary font-mono text-sm font-extrabold tabular-nums">
-                {clock.ready ? `${clock.timeShort} ${clock.period}` : ""}
-              </span>
-            </button>
-
-            <span
-              className="bg-border hidden h-5 w-px lg:inline-block"
-              aria-hidden="true"
-            />
-
-            {/* Navegación de periodo en escritorio (md+) */}
-            <div className="hidden items-center gap-0.5 md:flex">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleNavigate(-1)}
-                aria-label="Periodo anterior"
-                className="h-8 w-8 rounded-xl"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-foreground min-w-28 px-1 text-center text-sm font-extrabold whitespace-nowrap sm:text-base">
-                {periodLabel}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleNavigate(1)}
-                aria-label="Periodo siguiente"
-                className="h-8 w-8 rounded-xl"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              {isAwayFromToday && (
-                <Button
-                  variant="soft"
-                  size="sm"
-                  onClick={handleGoToday}
-                  className="ml-1 min-h-8 px-2.5 py-1 text-xs"
-                >
-                  Hoy
-                </Button>
-              )}
-            </div>
-
-            {/* Acciones rápidas móvil en Fila 1 (< md) */}
-            <div className="flex items-center gap-1.5 md:hidden">
-              <Button
-                variant="secondary"
-                size="icon"
-                onClick={toggleMode}
-                aria-label="Alternar modo claro u oscuro"
-                className="h-8 w-8"
-              >
-                {config.mode === "dark" ? (
-                  <Sun className="text-warning h-4 w-4" />
-                ) : (
-                  <Moon className="text-primary h-4 w-4" />
-                )}
-              </Button>
-              <NotificationPopover />
-            </div>
-          </div>
-
-          {/* Bloque central desktop (md+): Fecha y Hora centradas en la cabecera */}
-          <div className="hidden justify-center md:flex">
-            <button
-              type="button"
-              onClick={handleGoToday}
-              title="Ir a hoy"
-              className="flex cursor-pointer items-baseline gap-2.5 text-center transition-opacity hover:opacity-80"
-            >
-              <span className="text-foreground text-xl font-extrabold tracking-tight whitespace-nowrap lg:text-2xl">
-                {clock.ready ? formatShortDate(todayKey) : "Calendario"}
-              </span>
-              <span className="text-primary font-mono text-lg font-extrabold whitespace-nowrap tabular-nums lg:text-xl">
-                {clock.ready ? `${clock.timeShort} ${clock.period}` : ""}
-              </span>
-            </button>
-          </div>
-
-          {/* Fila 2 móvil (< md) / Bloque derecho desktop (md+) */}
-          <div className="flex items-center justify-between gap-2 md:justify-end">
-            {/* Navegación de periodo en móvil (< md) */}
-            <div className="flex items-center gap-0.5 md:hidden">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleNavigate(-1)}
-                aria-label="Periodo anterior"
-                className="h-8 w-8 rounded-lg"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-foreground px-1 text-sm font-extrabold">
-                {periodLabel}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleNavigate(1)}
-                aria-label="Periodo siguiente"
-                className="h-8 w-8 rounded-lg"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              {isAwayFromToday && (
-                <Button
-                  variant="soft"
-                  size="sm"
-                  onClick={handleGoToday}
-                  className="ml-0.5 min-h-7 px-2 py-0.5 text-[11px]"
-                >
-                  Hoy
-                </Button>
-              )}
-            </div>
-
-            {/* Selector de vistas */}
-            <div className="flex items-center gap-1.5">
-              <div
-                role="tablist"
-                aria-label="Vista del calendario"
-                className="border-border bg-surface flex rounded-xl border p-0.5 sm:rounded-2xl sm:p-1"
-              >
-                {VIEW_TABS.map((tab) => {
-                  const Icon = tab.icon;
-                  const active = view === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={active}
-                      aria-label={`Vista ${tab.label}`}
-                      title={tab.label}
-                      onClick={() => setView(tab.id)}
-                      className={cn(
-                        "flex h-8 min-w-8 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-bold whitespace-nowrap transition-all md:min-w-0 md:rounded-xl md:px-2.5 lg:px-3",
-                        active
-                          ? "bg-primary text-primary-foreground shadow-xs"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      <Icon className="h-4 w-4 md:hidden" aria-hidden="true" />
-                      <span className="hidden md:inline">{tab.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Buscador + Campana (Desktop md+) */}
-            <div className="hidden items-center gap-2 md:flex">
-              <div className="relative hidden xl:block">
-                <Search
-                  className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2"
-                  aria-hidden="true"
-                />
-                <input
-                  type="search"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Buscar..."
-                  aria-label="Buscar en el calendario"
-                  className="border-border bg-background text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/25 h-9 w-32 rounded-xl border pr-3 pl-8 text-xs transition-all focus:w-44 focus:ring-2 focus:outline-none"
-                />
-              </div>
-
-              <NotificationPopover />
-            </div>
+            <NotificationPopover />
           </div>
         </div>
       </header>
@@ -475,7 +456,6 @@ export function CalendarBoard() {
           <MonthGrid
             anchorDate={anchorDate}
             todayKey={todayKey}
-            selectedDateKey={selectedDateKey}
             itemsByDate={itemsByDate}
             onOpenDayDrawer={handleOpenDayDrawer}
             onQuickAddForDate={(key) => openQuickAdd("event", key)}
@@ -484,18 +464,6 @@ export function CalendarBoard() {
         )}
 
         {view === "week" && (
-          <WeekView
-            anchorDate={anchorDate}
-            todayKey={todayKey}
-            selectedDateKey={selectedDateKey}
-            itemsByDate={itemsByDate}
-            onSelectDate={(key) => setSelectedDateOverride(key)}
-            onQuickAddForDate={(key) => openQuickAdd("event", key)}
-            onSelectItem={setActiveItem}
-          />
-        )}
-
-        {view === "agenda" && (
           <WeeklyBoardView
             anchorDate={anchorDate}
             todayKey={todayKey}
@@ -507,22 +475,31 @@ export function CalendarBoard() {
           />
         )}
 
+        {view === "agenda" && (
+          <WeekView
+            anchorDate={anchorDate}
+            todayKey={todayKey}
+            itemsByDate={itemsByDate}
+            onSelectDate={handleOpenDayDrawer}
+            onQuickAddForDate={(key) => openQuickAdd("event", key)}
+            onSelectItem={setActiveItem}
+          />
+        )}
+
         {view === "day" && (
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_340px]">
-            <DayView
-              anchorDate={anchorDate}
-              dateKey={anchorKey}
-              items={itemsByDate.get(anchorKey) ?? []}
-              onQuickAddForDate={(key) => openQuickAdd("event", key)}
-              onSelectItem={setActiveItem}
-            />
-            <DaySidePanel
-              selectedDateKey={anchorKey}
-              todayKey={todayKey}
-              dayItems={itemsByDate.get(anchorKey) ?? []}
-              onSelectItem={setActiveItem}
-            />
-          </div>
+          <DayView
+            anchorDate={anchorDate}
+            dateKey={anchorKey}
+            todayKey={todayKey}
+            items={itemsByDate.get(anchorKey) ?? []}
+            itemsByDate={itemsByDate}
+            onSelectDate={(key) => {
+              setAnchorKeyOverride(key);
+              setSelectedDateOverride(key);
+            }}
+            onQuickAddForDate={(key) => openQuickAdd("event", key)}
+            onSelectItem={setActiveItem}
+          />
         )}
       </div>
 
@@ -532,6 +509,11 @@ export function CalendarBoard() {
         todayKey={todayKey}
         dayItems={selectedDayItems}
         onClose={() => setDrawerOpen(false)}
+        onOpenDayView={() => {
+          setAnchorKeyOverride(selectedDateKey);
+          setView("day");
+          setDrawerOpen(false);
+        }}
         onSelectItem={setActiveItem}
       />
 

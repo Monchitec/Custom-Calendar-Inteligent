@@ -4,8 +4,8 @@ import { useState } from "react";
 import {
   CheckCircle2,
   Circle,
+  Pencil,
   Plus,
-  RotateCcw,
   Trash2,
   Trophy,
   X,
@@ -20,26 +20,38 @@ import { inferVisualIcon } from "@/lib/visualIcons";
 import type { Profile } from "@/types/calendar";
 import type { Checklist, ChecklistResetSchedule } from "@/types/tasks";
 
-const RESET_LABELS: Record<ChecklistResetSchedule, string> = {
-  none: "Reinicio manual",
-  daily: "Reinicio diario",
-  weekly: "Reinicio semanal",
+const WEEKDAY_NAMES: Record<string, string> = {
+  "0": "domingo",
+  "1": "lunes",
+  "2": "martes",
+  "3": "miércoles",
+  "4": "jueves",
+  "5": "viernes",
+  "6": "sábado",
 };
+
+function getResetLabel(schedule: ChecklistResetSchedule): string {
+  if (schedule === "none") return "Reinicio manual";
+  if (schedule === "daily") return "Reinicio diario";
+  const day = schedule.includes(":") ? schedule.split(":")[1] : "1";
+  return `Reinicio semanal (${WEEKDAY_NAMES[day] ?? "lunes"})`;
+}
 
 interface ChecklistGroupCardProps {
   checklist: Checklist;
   profile?: Profile;
+  onEdit?: (checklist: Checklist) => void;
 }
 
 export function ChecklistGroupCard({
   checklist,
   profile,
+  onEdit,
 }: ChecklistGroupCardProps) {
   const {
     toggleChecklistStep,
     addChecklistStep,
     removeChecklistStep,
-    resetChecklist,
     deleteChecklist,
   } = useCalendarData();
 
@@ -99,7 +111,7 @@ export function ChecklistGroupCard({
                 {profile?.name ?? "General"}
               </span>
               <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-semibold">
-                {RESET_LABELS[checklist.resetSchedule]}
+                {getResetLabel(checklist.resetSchedule)}
               </span>
             </div>
             <h3 className="text-foreground mt-1.5 text-base font-extrabold">
@@ -114,16 +126,18 @@ export function ChecklistGroupCard({
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => resetChecklist(checklist.id)}
-            aria-label={`Reiniciar ${checklist.title}`}
-            title="Desmarcar todos los pasos"
-            className="h-8 w-8"
-          >
-            <RotateCcw className="h-4 w-4" />
-          </Button>
+          {onEdit && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onEdit(checklist)}
+              aria-label={`Editar ${checklist.title}`}
+              title="Editar tarea rutinaria"
+              className="h-8 w-8"
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
@@ -163,19 +177,19 @@ export function ChecklistGroupCard({
         </div>
       </div>
 
-      {/* Pasos con ícono visual para identificar tareas repetitivas al instante */}
-      <ul className="mt-4 flex-1 space-y-1.5">
+      {/* Pasos con ícono visual en 2 columnas compactas */}
+      <ul className="mt-3 grid flex-1 grid-cols-1 gap-1 sm:grid-cols-2">
         {checklist.steps.map((step) => {
           const stepIcon = inferVisualIcon(step.label, "task", step.visualIcon);
           return (
             <li
               key={step.id}
-              className="group hover:border-border hover:bg-surface/60 flex items-center gap-2 rounded-2xl border border-transparent px-2 py-1 transition-colors"
+              className="group hover:border-border hover:bg-surface/60 flex items-center gap-1.5 rounded-xl border border-transparent px-1.5 py-0.5 transition-colors"
             >
               <button
                 type="button"
                 onClick={() => toggleChecklistStep(checklist.id, step.id)}
-                className="flex min-h-10 flex-1 cursor-pointer items-center gap-2.5 text-left"
+                className="flex min-h-8 flex-1 cursor-pointer items-center gap-2 text-left"
               >
                 {step.done ? (
                   <CheckCircle2 className="text-success h-5 w-5 shrink-0" />

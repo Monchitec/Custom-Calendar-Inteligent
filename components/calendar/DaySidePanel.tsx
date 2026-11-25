@@ -24,7 +24,26 @@ export function DaySidePanel({
   dayItems,
   onSelectItem,
 }: DaySidePanelProps) {
-  const { checklists, toggleChecklistStep, openQuickAdd } = useCalendarData();
+  const {
+    checklists,
+    toggleChecklistStep,
+    openQuickAdd,
+    deleteEvent,
+    deleteTask,
+    deleteBill,
+  } = useCalendarData();
+
+  const handleDeleteItem = (item: ProjectedCalendarItem) => {
+    if (item.source === "event") {
+      deleteEvent(item.sourceId);
+    } else if (item.source === "task") {
+      if (!item.id.startsWith("checklist:")) {
+        deleteTask(item.sourceId);
+      }
+    } else if (item.source === "bill") {
+      deleteBill(item.sourceId);
+    }
+  };
   const isToday = selectedDateKey === todayKey;
 
   const featuredChecklist = checklists[0];
@@ -70,7 +89,17 @@ export function DaySidePanel({
             </div>
           ) : (
             dayItems.map((item) => (
-              <EventPill key={item.id} item={item} onClick={onSelectItem} />
+              <EventPill
+                key={item.id}
+                item={item}
+                showActions
+                onClick={onSelectItem}
+                onDelete={
+                  item.id.startsWith("checklist:")
+                    ? undefined
+                    : handleDeleteItem
+                }
+              />
             ))
           )}
         </div>

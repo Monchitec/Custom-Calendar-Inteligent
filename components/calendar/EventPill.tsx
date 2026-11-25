@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Check, Repeat } from "lucide-react";
+import { Bell, Check, Edit3, Repeat, Trash2 } from "lucide-react";
 import { useCalendarData } from "@/components/shared/providers/CalendarDataProvider";
 import { VisualThumb } from "@/components/shared/ui/VisualThumb";
 import { cn } from "@/lib/cn";
@@ -12,10 +12,18 @@ import type { ProjectedCalendarItem } from "@/types/calendar";
 interface EventPillProps {
   item: ProjectedCalendarItem;
   compact?: boolean;
+  showActions?: boolean;
   onClick: (item: ProjectedCalendarItem) => void;
+  onDelete?: (item: ProjectedCalendarItem) => void;
 }
 
-export function EventPill({ item, compact = false, onClick }: EventPillProps) {
+export function EventPill({
+  item,
+  compact = false,
+  showActions = false,
+  onClick,
+  onDelete,
+}: EventPillProps) {
   const { toggleTask } = useCalendarData();
   const slot = getProfileSlotClasses(item.colorSlot);
   const isDone = item.completed || item.billPaid;
@@ -130,6 +138,7 @@ export function EventPill({ item, compact = false, onClick }: EventPillProps) {
       )}
 
       {!compact &&
+        !showActions &&
         item.source === "event" &&
         item.reminderMinutes !== null &&
         item.reminderMinutes !== undefined && (
@@ -139,8 +148,42 @@ export function EventPill({ item, compact = false, onClick }: EventPillProps) {
           />
         )}
 
-      {!compact && item.recurrence && item.recurrence !== "none" && (
-        <Repeat className="h-3 w-3 shrink-0 opacity-65" aria-hidden="true" />
+      {!compact &&
+        !showActions &&
+        item.recurrence &&
+        item.recurrence !== "none" && (
+          <Repeat className="h-3 w-3 shrink-0 opacity-65" aria-hidden="true" />
+        )}
+
+      {showActions && (
+        <div className="flex shrink-0 items-center gap-0.5">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClick(item);
+            }}
+            aria-label={`Editar ${item.title}`}
+            title="Editar"
+            className="text-muted-foreground hover:bg-card hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center rounded-lg transition-colors"
+          >
+            <Edit3 className="h-3.5 w-3.5" />
+          </button>
+          {onDelete && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(item);
+              }}
+              aria-label={`Eliminar ${item.title}`}
+              title="Eliminar"
+              className="text-muted-foreground hover:bg-danger-soft hover:text-danger flex h-6 w-6 cursor-pointer items-center justify-center rounded-lg transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

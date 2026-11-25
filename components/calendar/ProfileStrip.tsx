@@ -69,14 +69,12 @@ export function ProfileStrip({
 
   const countByProfile = new Map<string, number>();
   let billsTotal = 0;
-  let billsPaid = 0;
   let tasksTotal = 0;
   let tasksDone = 0;
 
   for (const item of unfilteredItems) {
     if (item.source === "bill") {
       billsTotal += 1;
-      if (item.billPaid) billsPaid += 1;
       continue;
     }
     if (item.source === "task") {
@@ -186,38 +184,7 @@ export function ProfileStrip({
           <span>Todo</span>
         </button>
 
-        {/* Accesos directos de herramientas: solo visibles cuando hay Pagos o Tareas en el periodo */}
-        {showBillsChip && (
-          <button
-            type="button"
-            onClick={() =>
-              onChangeFilter(
-                filter.mode === "solo-bills"
-                  ? { mode: "all" }
-                  : { mode: "solo-bills" },
-              )
-            }
-            aria-pressed={filter.mode === "solo-bills"}
-            title="Ver solo Pagos"
-            className={cn(
-              "inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold transition-all",
-              filter.mode === "solo-bills"
-                ? "border-warning bg-warning-soft text-cat-bills ring-warning/30 shadow-xs ring-2"
-                : "border-warning/40 bg-warning-soft/75 text-cat-bills hover:brightness-96",
-            )}
-          >
-            <span aria-hidden="true" className="text-sm leading-none">
-              💳
-            </span>
-            <span>Pagos</span>
-            {billsTotal > 0 && (
-              <span className="text-muted-foreground hidden text-[11px] font-extrabold tabular-nums sm:inline">
-                {billsPaid}/{billsTotal}
-              </span>
-            )}
-          </button>
-        )}
-
+        {/* Accesos directos de herramientas: solo visible cuando hay Tareas en el periodo */}
         {showTasksChip && (
           <button
             type="button"
@@ -249,7 +216,7 @@ export function ProfileStrip({
           </button>
         )}
 
-        {hasAnyModuleChip && (
+        {showTasksChip && (
           <span
             className="bg-border mx-0.5 hidden h-5 w-px md:inline-block"
             aria-hidden="true"
@@ -281,8 +248,7 @@ export function ProfileStrip({
               aria-pressed={isSolo}
               title={`Clic para ver solo ${profile.name}`}
               className={cn(
-                "min-h-8 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold transition-all",
-                isSolo ? "inline-flex" : "hidden md:inline-flex",
+                "inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold transition-all",
                 isSolo
                   ? cn(slot.activeChip, "ring-primary/35 shadow-xs ring-2")
                   : isIncluded
@@ -331,10 +297,7 @@ export function ProfileStrip({
             )}
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />
-            <span className="md:hidden">
-              {isCustomMulti ? "Filtros" : "Perfiles"}
-            </span>
-            <span className="hidden md:inline">
+            <span>
               {isCustomMulti
                 ? "Filtro combinado"
                 : hiddenCount > 0

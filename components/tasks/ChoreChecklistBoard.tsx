@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CheckSquare, Frown, ListChecks, Meh, Plus, Smile } from "lucide-react";
+import { Frown, ListChecks, Meh, Plus, Smile } from "lucide-react";
 import { NotificationPopover } from "@/components/shared/layout/NotificationPopover";
 import { useCalendarData } from "@/components/shared/providers/CalendarDataProvider";
 import { Button } from "@/components/shared/ui/Button";
@@ -10,11 +10,8 @@ import { useClock } from "@/hooks/useClock";
 import { cn } from "@/lib/cn";
 import { pad2 } from "@/lib/dates";
 import { generateId } from "@/lib/storage";
-import type { ChecklistResetSchedule } from "@/types/tasks";
+import type { Checklist, ChecklistResetSchedule } from "@/types/tasks";
 import { ChecklistGroupCard } from "./ChecklistGroupCard";
-import { PendingList } from "./PendingList";
-
-type TasksTab = "rutinarias" | "puntuales";
 type DayMood = "happy" | "neutral" | "sad";
 
 const DAY_CLOSING_HOUR = 20; // 8:00 p. m.
@@ -26,10 +23,12 @@ const LABEL_CLASS =
 
 export function ChoreChecklistBoard() {
   const clock = useClock();
-  const { profiles, checklists, tasks, addChecklist, openQuickAdd } =
+  const { profiles, checklists, tasks, addChecklist, updateChecklist } =
     useCalendarData();
-  const [activeTab, setActiveTab] = useState<TasksTab>("rutinarias");
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingChecklistId, setEditingChecklistId] = useState<string | null>(
+    null,
+  );
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -82,7 +81,7 @@ export function ChoreChecklistBoard() {
       if (!hasPending) continue;
       if (c.resetSchedule === "daily" && isLateDay) {
         lateDailyRoutines += 1;
-      } else if (c.resetSchedule === "weekly" && isSundayEvening) {
+      } else if (c.resetSchedule.startsWith("weekly") && isSundayEvening) {
         lateWeeklyRoutines += 1;
       }
     }
@@ -139,26 +138,70 @@ export function ChoreChecklistBoard() {
     };
   }, [checklists, tasks, clock.now, clock.ready, clock.todayKey]);
 
+  const handleOpenCreate = () => {
+    setEditingChecklistId(null);
+    setTitle("");
+    setDescription("");
+    setProfileId("");
+    setResetSchedule("daily");
+    setStepsRaw("");
+    setModalOpen(true);
+  };
+
+  const handleOpenEdit = (cl: Checklist) => {
+    setEditingChecklistId(cl.id);
+    setTitle(cl.title);
+    setDescription(cl.description ?? "");
+    setProfileId(cl.profileId);
+    setResetSchedule(cl.resetSchedule);
+    setStepsRaw(cl.steps.map((s) => s.label).join("\n"));
+    setModalOpen(true);
+  };
+
   const handleCreateChecklist = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
+
+    const existing = editingChecklistId
+      ? checklists.find((c) => c.id === editingChecklistId)
+      : undefined;
+    const existingByLabel = new Map(
+      (existing?.steps ?? []).map((s) => [s.label.toLowerCase(), s]),
+    );
+
     const steps = stepsRaw
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean)
-      .map((label) => ({ id: generateId("st"), label, done: false }));
+      .map((label) => {
+        const prev = existingByLabel.get(label.toLowerCase());
+        return prev ? prev : { id: generateId("st"), label, done: false };
+      });
 
-    addChecklist({
-      title: title.trim(),
-      description: description.trim() || undefined,
-      profileId: profileId || profiles[0]?.id || "",
-      resetSchedule,
-      steps:
-        steps.length > 0
-          ? steps
-          : [{ id: generateId("st"), label: "Primer paso", done: false }],
-    });
+    const finalSteps =
+      steps.length > 0
+        ? steps
+        : [{ id: generateId("st"), label: "Primer paso", done: false }];
 
+    if (editingChecklistId) {
+      updateChecklist(editingChecklistId, {
+        title: title.trim(),
+        description: description.trim() || undefined,
+        profileId: profileId || profiles[0]?.id || "",
+        resetSchedule,
+        steps: finalSteps,
+      });
+    } else {
+      addChecklist({
+        title: title.trim(),
+        description: description.trim() || undefined,
+        profileId: profileId || profiles[0]?.id || "",
+        resetSchedule,
+        steps: finalSteps,
+      });
+    }
+
+    setEditingChecklistId(null);
     setTitle("");
     setDescription("");
     setStepsRaw("");
@@ -173,32 +216,13 @@ export function ChoreChecklistBoard() {
           <h1 className="text-foreground text-2xl font-extrabold tracking-tight sm:text-3xl">
             Mis Tareas
           </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Organiza tus tareas rutinarias con reinicio automático y tus tareas
-            puntuales por perfil
-          </p>
         </div>
 
         <div className="flex items-center gap-2">
-          {activeTab === "rutinarias" ? (
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => setModalOpen(true)}
-            >
-              <Plus className="h-4 w-4" />
-              Nueva tarea rutinaria
-            </Button>
-          ) : (
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => openQuickAdd("task")}
-            >
-              <Plus className="h-4 w-4" />
-              Nueva tarea puntual
-            </Button>
-          )}
+          <Button variant="primary" size="md" onClick={handleOpenCreate}>
+            <Plus className="h-4 w-4" />
+            Nueva tarea rutinaria
+          </Button>
           <NotificationPopover />
         </div>
       </div>
@@ -280,11 +304,7 @@ export function ChoreChecklistBoard() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => setActiveTab("rutinarias")}
-              className="border-border bg-surface/75 text-muted-foreground hover:text-foreground inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 font-semibold tabular-nums transition-colors"
-            >
+            <span className="border-border bg-surface/75 text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-semibold tabular-nums">
               <ListChecks className="text-primary h-3.5 w-3.5" />
               <span>
                 Rutinas:{" "}
@@ -292,131 +312,54 @@ export function ChoreChecklistBoard() {
                   {stats.doneSteps}/{stats.totalSteps}
                 </strong>
               </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("puntuales")}
-              className="border-border bg-surface/75 text-muted-foreground hover:text-foreground inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 font-semibold tabular-nums transition-colors"
-            >
-              <CheckSquare className="text-secondary h-3.5 w-3.5" />
-              <span>
-                Puntuales:{" "}
-                <strong className="text-foreground font-extrabold">
-                  {stats.openTasks}
-                </strong>{" "}
-                {stats.openTasks === 1 ? "pendiente" : "pendientes"}
-              </span>
-            </button>
+            </span>
           </div>
         </div>
       </section>
 
-      {/* Pestañas uniformes estilo Configuración */}
-      <div
-        role="tablist"
-        aria-label="Tipo de tareas"
-        className="border-border bg-card flex flex-wrap gap-2 rounded-3xl border p-2 shadow-2xs"
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "rutinarias"}
-          onClick={() => setActiveTab("rutinarias")}
-          className={cn(
-            "flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition-all sm:flex-initial",
-            activeTab === "rutinarias"
-              ? "bg-primary text-primary-foreground shadow-xs"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground",
-          )}
-        >
-          <ListChecks className="h-4 w-4 shrink-0" />
-          <span>Tareas rutinarias</span>
-          <span
-            className={cn(
-              "rounded-full px-2 py-0.5 text-[11px] font-extrabold tabular-nums",
-              activeTab === "rutinarias"
-                ? "bg-primary-foreground/20 text-primary-foreground"
-                : "bg-muted text-muted-foreground",
-            )}
-          >
-            {checklists.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "puntuales"}
-          onClick={() => setActiveTab("puntuales")}
-          className={cn(
-            "flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition-all sm:flex-initial",
-            activeTab === "puntuales"
-              ? "bg-primary text-primary-foreground shadow-xs"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground",
-          )}
-        >
-          <CheckSquare className="h-4 w-4 shrink-0" />
-          <span>Tareas puntuales</span>
-          <span
-            className={cn(
-              "rounded-full px-2 py-0.5 text-[11px] font-extrabold tabular-nums",
-              activeTab === "puntuales"
-                ? "bg-primary-foreground/20 text-primary-foreground"
-                : "bg-muted text-muted-foreground",
-            )}
-          >
-            {stats.openTasks}
-          </span>
-        </button>
-      </div>
-
-      {/* Contenido de pestaña activa (ambas en contenedor uniforme) */}
-      {activeTab === "rutinarias" ? (
-        <section className="border-border bg-card rounded-3xl border p-5 shadow-xs">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-foreground text-lg font-extrabold">
-                Tareas rutinarias
-              </h2>
-              <p className="text-muted-foreground text-xs">
-                Rutinas con pasos marcables y reinicio automático diario o
-                semanal
-              </p>
-            </div>
+      {/* Contenido de tareas rutinarias */}
+      <section className="border-border bg-card rounded-3xl border p-5 shadow-xs">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-foreground text-lg font-extrabold">
+              Tareas rutinarias
+            </h2>
           </div>
+        </div>
 
-          {checklists.length === 0 ? (
-            <div className="border-border bg-surface/40 rounded-2xl border border-dashed p-10 text-center">
-              <p className="text-foreground text-base font-bold">
-                Aún no tienes tareas rutinarias creadas
-              </p>
-              <p className="text-muted-foreground mt-1 text-sm">
-                Crea rutinas escolares, de limpieza del hogar o de trabajo con
-                pasos marcables.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
-              {checklists.map((cl) => (
-                <ChecklistGroupCard
-                  key={cl.id}
-                  checklist={cl}
-                  profile={profileMap.get(cl.profileId)}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-      ) : (
-        <PendingList />
-      )}
+        {checklists.length === 0 ? (
+          <div className="border-border bg-surface/40 rounded-2xl border border-dashed p-10 text-center">
+            <p className="text-foreground text-base font-bold">
+              Aún no tienes tareas rutinarias creadas
+            </p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Crea rutinas escolares, de limpieza del hogar o de trabajo con
+              pasos marcables.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            {checklists.map((cl) => (
+              <ChecklistGroupCard
+                key={cl.id}
+                checklist={cl}
+                profile={profileMap.get(cl.profileId)}
+                onEdit={handleOpenEdit}
+              />
+            ))}
+          </div>
+        )}
+      </section>
 
-      {/* Modal nueva Checklist */}
+      {/* Modal nueva / editar Checklist */}
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title="Nueva tarea rutinaria"
+        title={
+          editingChecklistId
+            ? "Editar tarea rutinaria"
+            : "Nueva tarea rutinaria"
+        }
         subtitle="Ideal para rutinas diarias, colegio de Azucena, limpieza del hogar o compras"
         footer={
           <div className="flex justify-end gap-2">
@@ -428,7 +371,7 @@ export function ChoreChecklistBoard() {
               Cancelar
             </Button>
             <Button type="submit" form="new-checklist-form" variant="primary">
-              Crear tarea rutinaria
+              {editingChecklistId ? "Guardar cambios" : "Crear tarea rutinaria"}
             </Button>
           </div>
         }
@@ -491,18 +434,55 @@ export function ChoreChecklistBoard() {
               </label>
               <select
                 id="chk-reset"
-                value={resetSchedule}
-                onChange={(e) =>
-                  setResetSchedule(e.target.value as ChecklistResetSchedule)
+                value={
+                  resetSchedule.startsWith("weekly") ? "weekly" : resetSchedule
                 }
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "weekly") {
+                    setResetSchedule("weekly:1");
+                  } else {
+                    setResetSchedule(val as ChecklistResetSchedule);
+                  }
+                }}
                 className={INPUT_CLASS}
               >
                 <option value="daily">Cada día</option>
-                <option value="weekly">Cada semana (lunes)</option>
+                <option value="weekly">Cada semana</option>
                 <option value="none">Manual (no se reinicia)</option>
               </select>
             </div>
           </div>
+
+          {resetSchedule.startsWith("weekly") && (
+            <div>
+              <label htmlFor="chk-reset-day" className={LABEL_CLASS}>
+                Día de reinicio semanal
+              </label>
+              <select
+                id="chk-reset-day"
+                value={
+                  resetSchedule.includes(":")
+                    ? resetSchedule.split(":")[1]
+                    : "1"
+                }
+                onChange={(e) =>
+                  setResetSchedule(
+                    `weekly:${Number(e.target.value) as 0 | 1 | 2 | 3 | 4 | 5 | 6}`,
+                  )
+                }
+                className={INPUT_CLASS}
+              >
+                <option value="1">Lunes</option>
+                <option value="2">Martes</option>
+                <option value="3">Miércoles</option>
+                <option value="4">Jueves</option>
+                <option value="5">Viernes</option>
+                <option value="6">Sábado</option>
+                <option value="0">Domingo</option>
+              </select>
+            </div>
+          )}
 
           <div>
             <label htmlFor="chk-steps" className={LABEL_CLASS}>

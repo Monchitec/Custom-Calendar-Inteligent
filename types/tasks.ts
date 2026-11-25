@@ -21,7 +21,8 @@ export interface ChecklistStep {
   visualIcon?: string;
 }
 
-export type ChecklistResetSchedule = "none" | "daily" | "weekly";
+export type ChecklistResetSchedule =
+  "none" | "daily" | "weekly" | `weekly:${0 | 1 | 2 | 3 | 4 | 5 | 6}`;
 
 export interface Checklist {
   id: string;

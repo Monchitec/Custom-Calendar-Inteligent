@@ -189,19 +189,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Plus className="h-4 w-4" />
                 Nuevo
               </Button>
-              <Button
-                variant="secondary"
-                size="icon"
-                onClick={toggleMode}
-                aria-label="Alternar modo claro u oscuro"
-                className="md:hidden"
-              >
-                {config.mode === "dark" ? (
-                  <Sun className="text-warning h-4 w-4" />
-                ) : (
-                  <Moon className="text-primary h-4 w-4" />
-                )}
-              </Button>
               <NotificationPopover />
             </div>
           </header>

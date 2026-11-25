@@ -16,7 +16,6 @@ import type { ProjectedCalendarItem } from "@/types/calendar";
 interface MonthGridProps {
   anchorDate: Date;
   todayKey: string;
-  selectedDateKey: string;
   itemsByDate: Map<string, ProjectedCalendarItem[]>;
   onOpenDayDrawer: (dateKey: string) => void;
   onQuickAddForDate: (dateKey: string) => void;
@@ -26,7 +25,6 @@ interface MonthGridProps {
 export function MonthGrid({
   anchorDate,
   todayKey,
-  selectedDateKey,
   itemsByDate,
   onOpenDayDrawer,
   onQuickAddForDate,
@@ -71,7 +69,6 @@ export function MonthGrid({
           }
 
           const isToday = key === todayKey;
-          const isSelected = key === selectedDateKey;
           const dayItems = itemsByDate.get(key) ?? [];
           const visibleItems = dayItems.slice(0, 2);
           const overflowCount = dayItems.length - visibleItems.length;
@@ -95,7 +92,6 @@ export function MonthGrid({
                 "focus-visible:ring-primary focus-visible:z-10 focus-visible:ring-2 focus-visible:outline-none",
                 isToday &&
                   "bg-primary-soft/35 ring-primary/45 ring-2 ring-inset",
-                isSelected && !isToday && "ring-primary/35 ring-2 ring-inset",
               )}
             >
               {/* Fila superior: números grandes y legibles */}
