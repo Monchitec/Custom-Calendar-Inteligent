@@ -9,8 +9,7 @@ import {
   formatCurrency,
   formatShortDate,
   formatTimeDisplay,
-  getWeekDays,
-  getWeekdayHeadersMonday,
+  getWeekdayLong,
   toDateKey,
 } from "@/lib/dates";
 import { getProfileSlotClasses } from "@/lib/themes";
@@ -37,17 +36,17 @@ export function WeeklyBoardView({
   onGoNextWeek,
 }: WeeklyBoardViewProps) {
   const { toggleTask } = useCalendarData();
-  const weekDays = getWeekDays(anchorDate);
-  const weekdayNames = getWeekdayHeadersMonday();
-  const nextWeekStart = addDays(weekDays[0], 7);
-  const nextWeekEnd = addDays(nextWeekStart, 6);
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(anchorDate, i));
+  const nextWeekStart = addDays(anchorDate, 7);
+  const nextWeekEnd = addDays(anchorDate, 13);
 
   return (
     <div className="divide-border border-border bg-card grid grid-cols-1 divide-y overflow-hidden rounded-3xl border shadow-xs sm:grid-cols-2 sm:divide-x lg:min-h-[calc(100dvh-9.75rem)] lg:grid-cols-4 lg:grid-rows-2">
-      {weekDays.map((day, idx) => {
+      {weekDays.map((day) => {
         const key = toDateKey(day);
         const isToday = key === todayKey;
         const dayItems = itemsByDate.get(key) ?? [];
+        const weekdayShort = getWeekdayLong(day).slice(0, 3);
 
         return (
           <section
@@ -63,7 +62,7 @@ export function WeeklyBoardView({
             <div className="mb-3 text-center">
               <div className="inline-flex items-center justify-center gap-1.5">
                 <span className="text-foreground text-base font-extrabold sm:text-lg">
-                  {weekdayNames[idx]}
+                  {weekdayShort}
                 </span>
                 <span
                   className={cn(

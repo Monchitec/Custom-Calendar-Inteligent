@@ -115,7 +115,20 @@ export function CalendarBoard() {
         periodLabel: formatMonthYear(anchorDate),
       };
     }
-    if (view === "week" || view === "agenda") {
+    if (view === "agenda") {
+      const start = toDateKey(anchorDate);
+      const end = toDateKey(addDays(anchorDate, 6));
+      const nwStart = toDateKey(addDays(anchorDate, 7));
+      const nwEnd = toDateKey(addDays(anchorDate, 13));
+      return {
+        rangeStartKey: start,
+        rangeEndKey: end,
+        nextWeekStartKey: nwStart,
+        nextWeekEndKey: nwEnd,
+        periodLabel: `${formatShortDate(start)} – ${formatShortDate(end)}`,
+      };
+    }
+    if (view === "week") {
       const days = getWeekDays(anchorDate);
       const start = toDateKey(days[0]);
       const end = toDateKey(days[6]);

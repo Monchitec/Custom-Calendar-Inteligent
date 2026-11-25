@@ -210,8 +210,10 @@ export function MonthGrid({
                             : item.title
                         }
                         className={cn(
-                          "border-border bg-card hover:bg-card-hover flex w-full min-w-0 cursor-pointer items-center justify-between gap-1 overflow-hidden rounded-sm border px-1 py-0.5 text-left text-[11px] leading-tight transition-colors sm:rounded-md sm:px-1.5 sm:py-1 sm:text-xs",
-                          isDone && "opacity-60",
+                          "flex w-full min-w-0 cursor-pointer items-center justify-between gap-1 overflow-hidden rounded-sm border border-l-[3px] px-1 py-0.5 text-left text-[11px] leading-tight transition-all hover:brightness-97 sm:rounded-md sm:px-1.5 sm:py-1 sm:text-xs",
+                          item.billPaid
+                            ? "border-success/35 border-l-success bg-success-soft/50 opacity-80"
+                            : "border-warning/35 border-l-cat-bills bg-warning-soft/60",
                         )}
                       >
                         <span className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">

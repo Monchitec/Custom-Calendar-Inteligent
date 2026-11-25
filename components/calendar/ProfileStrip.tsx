@@ -202,8 +202,8 @@ export function ProfileStrip({
             className={cn(
               "inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold transition-all",
               filter.mode === "solo-bills"
-                ? "border-warning bg-warning-soft text-foreground ring-warning/30 ring-2"
-                : "border-border bg-card text-foreground hover:bg-card-hover",
+                ? "border-warning bg-warning-soft text-cat-bills ring-warning/30 shadow-xs ring-2"
+                : "border-warning/40 bg-warning-soft/75 text-cat-bills hover:brightness-96",
             )}
           >
             <span aria-hidden="true" className="text-sm leading-none">
