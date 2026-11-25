@@ -230,27 +230,23 @@ export function BillCard({
         )}
       </div>
 
-      <div className="mt-4 pt-2">
-        <Button
-          variant={isPaid ? "secondary" : "primary"}
-          size="md"
-          onClick={onTogglePaid}
-          className={cn(
-            "w-full",
-            isPaid &&
-              "bg-muted text-muted-foreground border-border/70 hover:bg-muted opacity-60 shadow-none hover:opacity-85",
-          )}
-        >
-          <CheckCircle2 className="h-4 w-4" />
-          {isIncome
-            ? isPaid
-              ? "Recibido (desmarcar)"
-              : "Marcar como recibido"
-            : isPaid
-              ? "Pagado (desmarcar)"
-              : "Marcar como pagado"}
-        </Button>
-      </div>
+      {!isIncome && (
+        <div className="mt-4 pt-2">
+          <Button
+            variant={isPaid ? "secondary" : "primary"}
+            size="md"
+            onClick={onTogglePaid}
+            className={cn(
+              "w-full",
+              isPaid &&
+                "bg-muted text-muted-foreground border-border/70 hover:bg-muted opacity-60 shadow-none hover:opacity-85",
+            )}
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            {isPaid ? "Pagado (desmarcar)" : "Marcar como pagado"}
+          </Button>
+        </div>
+      )}
     </article>
   );
 }
@@ -437,6 +433,198 @@ export function BillRow({
         >
           <Trash2 className="h-4 w-4" />
         </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Fila tipo Estado de Cuenta Bancario (estable para columnas de Ingresos y Egresos) */
+export function BillStatementRow({
+  bill,
+  dueDate,
+  status,
+  onTogglePaid,
+  onEdit,
+  onDelete,
+}: BillCardProps) {
+  const isIncome = bill.kind === "income";
+  const isPaid = status === "paid";
+  const payUrl = !isIncome ? normalizePaymentUrl(bill.paymentUrl) : null;
+
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between gap-3 border-l-3 px-4 py-3 transition-all sm:px-5",
+        isIncome
+          ? "border-l-success/70 hover:bg-card-hover/65"
+          : isPaid
+            ? "border-l-border bg-muted/40 opacity-55 grayscale-25 hover:opacity-80"
+            : status === "overdue"
+              ? "border-l-danger bg-danger-soft/15 hover:bg-danger-soft/25"
+              : status === "due-soon"
+                ? "border-l-warning bg-warning-soft/15 hover:bg-warning-soft/25"
+                : "border-l-primary/70 hover:bg-card-hover/65",
+      )}
+    >
+      {/* Bloque izquierdo: Ícono + Nombre + Fecha / Frecuencia */}
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <span
+          className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border",
+            isIncome
+              ? "border-success/30 bg-success-soft"
+              : isPaid
+                ? "border-border/70 bg-muted"
+                : "border-border bg-surface",
+          )}
+        >
+          <VisualThumb
+            value={
+              bill.visualIcon ||
+              (isIncome ? "💰" : inferVisualIcon(bill.name, "bill"))
+            }
+            alt={bill.name}
+            sizeClass="h-10 w-10"
+            textClass="text-lg"
+            roundedClass="rounded-2xl"
+          />
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <p
+              className={cn(
+                "truncate text-sm leading-snug font-extrabold",
+                isPaid && !isIncome
+                  ? "text-muted-foreground"
+                  : "text-foreground",
+              )}
+            >
+              {bill.name}
+            </p>
+
+            {!isIncome && bill.autoPay && (
+              <span className="bg-secondary-soft text-secondary inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold">
+                <Zap className="h-2.5 w-2.5" />
+                Auto
+              </span>
+            )}
+          </div>
+
+          <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-medium tabular-nums">
+            <span
+              className={cn(
+                !isIncome &&
+                  !isPaid &&
+                  status === "overdue" &&
+                  "text-danger font-bold",
+                !isIncome &&
+                  !isPaid &&
+                  status === "due-soon" &&
+                  "text-warning font-bold",
+              )}
+            >
+              {formatShortDate(dueDate)}
+            </span>
+            {!isIncome && !isPaid && status === "overdue" && (
+              <span className="bg-danger-soft text-danger py-0.2 rounded-full px-1.5 text-[10px] font-bold">
+                Vencido
+              </span>
+            )}
+            {!isIncome && !isPaid && status === "due-soon" && (
+              <span className="bg-warning-soft text-warning py-0.2 rounded-full px-1.5 text-[10px] font-bold">
+                Por vencer
+              </span>
+            )}
+            <span aria-hidden="true">·</span>
+            <span className="inline-flex items-center gap-1">
+              <Repeat className="h-3 w-3 shrink-0" />
+              {FREQ_LABELS[bill.frequency]}
+            </span>
+            {bill.provider && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="truncate">{bill.provider}</span>
+              </>
+            )}
+            {payUrl && (
+              <>
+                <span aria-hidden="true">·</span>
+                <a
+                  href={payUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={bill.paymentUrl}
+                  className="text-cat-1 inline-flex items-center gap-0.5 font-bold hover:underline"
+                >
+                  <ExternalLink className="h-3 w-3 shrink-0" />
+                  Link
+                </a>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Bloque derecho: Monto + Acción bancaria + Editar / Eliminar */}
+      <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
+        <div className="text-right tabular-nums">
+          <p
+            className={cn(
+              "text-sm font-extrabold whitespace-nowrap sm:text-base",
+              isIncome
+                ? "text-success"
+                : isPaid
+                  ? "text-muted-foreground"
+                  : "text-foreground",
+            )}
+          >
+            {isIncome ? "+" : ""}
+            {formatCurrency(bill.amount, bill.currency)}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-0.5 sm:gap-1">
+          {!isIncome && (
+            <Button
+              variant={isPaid ? "secondary" : "primary"}
+              size="sm"
+              onClick={onTogglePaid}
+              title={isPaid ? "Desmarcar pago" : "Marcar como pagado"}
+              className={cn(
+                "min-h-8 px-2.5 py-1 text-xs sm:px-3",
+                isPaid &&
+                  "border-border/70 bg-muted text-muted-foreground hover:bg-muted opacity-65 shadow-none hover:opacity-90",
+              )}
+            >
+              <CheckCircle2
+                className={cn("h-3.5 w-3.5", isPaid && "text-success")}
+              />
+              <span className="hidden sm:inline">
+                {isPaid ? "Pagado" : "Pagar"}
+              </span>
+            </Button>
+          )}
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onEdit}
+            aria-label={`Editar ${bill.name}`}
+            className="h-7 w-7 sm:h-8 sm:w-8"
+          >
+            <Edit3 className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onDelete}
+            aria-label={`Eliminar ${bill.name}`}
+            className="hover:text-danger h-7 w-7 sm:h-8 sm:w-8"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
     </div>
   );

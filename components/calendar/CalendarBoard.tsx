@@ -8,7 +8,6 @@ import {
   ChevronRight,
   Columns3,
   LayoutGrid,
-  Plus,
   Search,
 } from "lucide-react";
 import { NotificationPopover } from "@/components/shared/layout/NotificationPopover";
@@ -424,18 +423,6 @@ export function CalendarBoard() {
                 className="border-border bg-background text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/25 h-9 w-32 rounded-xl border pr-3 pl-8 text-xs transition-all focus:w-44 focus:ring-2 focus:outline-none"
               />
             </div>
-
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => openQuickAdd("event", selectedDateKey)}
-              aria-label="Nuevo registro"
-              className="min-h-8 shrink-0 px-2.5 py-1 text-xs md:min-h-9 md:px-3.5"
-            >
-              <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" />
-              <span className="md:hidden">Nuevo</span>
-              <span className="hidden md:inline">Nuevo registro</span>
-            </Button>
 
             <NotificationPopover />
           </div>
