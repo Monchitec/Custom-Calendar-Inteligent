@@ -7,6 +7,7 @@ import {
   ChevronRight,
   MapPin,
   Plus,
+  Trash2,
 } from "lucide-react";
 import { useCalendarData } from "@/components/shared/providers/CalendarDataProvider";
 import { Button } from "@/components/shared/ui/Button";
@@ -48,11 +49,21 @@ export function DayView({
   onQuickAddForDate,
   onSelectItem,
 }: DayViewProps) {
-  const { profiles } = useCalendarData();
+  const { profiles, deleteEvent, deleteBill, deleteTask } = useCalendarData();
   const profileMap = useMemo(
     () => new Map(profiles.map((p) => [p.id, p])),
     [profiles],
   );
+
+  const handleDeleteItem = (item: ProjectedCalendarItem) => {
+    if (item.source === "event") {
+      deleteEvent(item.sourceId);
+    } else if (item.source === "bill") {
+      deleteBill(item.sourceId);
+    } else {
+      deleteTask(item.sourceId);
+    }
+  };
 
   // Mes mostrado en el mini calendario derecho (sincronizado con anchorDate al cambiar)
   const anchorMonthKey = `${anchorDate.getFullYear()}-${anchorDate.getMonth()}`;
@@ -189,17 +200,19 @@ export function DayView({
                       }`;
 
                 return (
-                  <button
+                  <div
                     key={item.id}
-                    type="button"
-                    onClick={() => onSelectItem(item)}
                     className={cn(
-                      "flex w-full cursor-pointer items-center justify-between gap-4 rounded-2xl border-l-4 px-4 py-3.5 text-left transition-all hover:brightness-[0.98]",
+                      "flex w-full items-center justify-between gap-3 rounded-2xl border-l-4 px-4 py-3 text-left transition-all hover:brightness-[0.98]",
                       cardClasses,
                       (item.completed || isPaid) && "opacity-75",
                     )}
                   >
-                    <div className="flex min-w-0 items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => onSelectItem(item)}
+                      className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
+                    >
                       <VisualThumb
                         value={visualIcon}
                         sizeClass="h-8 w-8"
@@ -207,7 +220,7 @@ export function DayView({
                         roundedClass="rounded-xl"
                         className="bg-card/80 shrink-0"
                       />
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p
                           className={cn(
                             "text-foreground truncate text-sm font-bold sm:text-base",
@@ -226,9 +239,9 @@ export function DayView({
                           )}
                         </div>
                       </div>
-                    </div>
+                    </button>
 
-                    {/* Indicador de perfil / estado a la derecha */}
+                    {/* Indicador de perfil + botón eliminar directo */}
                     <div className="flex shrink-0 items-center gap-2">
                       {profile ? (
                         <div
@@ -263,8 +276,19 @@ export function DayView({
                           aria-hidden="true"
                         />
                       )}
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteItem(item)}
+                        aria-label={`Eliminar ${item.title}`}
+                        title="Eliminar"
+                        className="text-muted-foreground hover:bg-card/80 hover:text-danger h-8 w-8 rounded-xl"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
