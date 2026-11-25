@@ -3,6 +3,7 @@
 import {
   AlertTriangle,
   ArrowDownLeft,
+  ArrowUpRight,
   Calendar,
   CheckCircle2,
   Clock,
@@ -100,7 +101,7 @@ export function BillCard({
   return (
     <article
       className={cn(
-        "bg-card flex flex-col justify-between rounded-3xl border p-5 shadow-xs transition-all",
+        "bg-card flex flex-col justify-between rounded-2xl border p-3.5 shadow-xs transition-all",
         isIncome
           ? "border-success/35 bg-success-soft/10"
           : status === "overdue"
@@ -111,51 +112,51 @@ export function BillCard({
       )}
     >
       <div>
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1">
             <span
               className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold",
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold",
                 st.className,
               )}
             >
-              <StatusIcon className="h-3.5 w-3.5" />
+              <StatusIcon className="h-3 w-3" />
               {st.label}
             </span>
             {!isIncome && bill.autoPay && (
-              <span className="bg-secondary-soft text-secondary inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold">
+              <span className="bg-secondary-soft text-secondary inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold">
                 <Zap className="h-3 w-3" />
                 Auto-pago
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5">
             <Button
               variant="ghost"
               size="icon"
               onClick={onEdit}
               aria-label={`Editar ${bill.name}`}
-              className="h-8 w-8"
+              className="h-7 w-7"
             >
-              <Edit3 className="h-4 w-4" />
+              <Edit3 className="h-3.5 w-3.5" />
             </Button>
             <Button
               variant="ghost"
               size="icon"
               onClick={onDelete}
               aria-label={`Eliminar ${bill.name}`}
-              className="hover:text-danger h-8 w-8"
+              className="hover:text-danger h-7 w-7"
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </div>
         </div>
 
-        <div className="mt-3 flex items-center gap-3">
+        <div className="mt-2 flex items-center gap-2.5">
           <span
             className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border",
+              "flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl border",
               isIncome
                 ? "border-success/30 bg-success-soft"
                 : "bg-surface border-border",
@@ -167,31 +168,31 @@ export function BillCard({
                 (isIncome ? "💰" : inferVisualIcon(bill.name, "bill"))
               }
               alt={bill.name}
-              sizeClass="h-10 w-10"
-              textClass="text-xl"
-              roundedClass="rounded-2xl"
+              sizeClass="h-8 w-8"
+              textClass="text-base"
+              roundedClass="rounded-xl"
             />
           </span>
           <div className="min-w-0">
-            <h3 className="text-foreground truncate text-base font-extrabold">
+            <h3 className="text-foreground truncate text-sm font-extrabold">
               {bill.name}
             </h3>
             {bill.provider && (
-              <p className="text-muted-foreground truncate text-xs font-medium">
+              <p className="text-muted-foreground truncate text-[11px] font-medium">
                 {bill.provider}
               </p>
             )}
           </div>
         </div>
 
-        <div className="bg-surface/70 mt-4 flex items-baseline justify-between gap-2 rounded-2xl px-3.5 py-2.5">
+        <div className="bg-surface/70 mt-2.5 flex items-baseline justify-between gap-2 rounded-xl px-3 py-2">
           <div>
-            <p className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase">
+            <p className="text-muted-foreground text-[10px] font-semibold tracking-wide uppercase">
               {isIncome ? "Ingreso" : "Monto"}
             </p>
             <p
               className={cn(
-                "text-xl font-extrabold tabular-nums",
+                "text-lg font-extrabold tabular-nums",
                 isIncome ? "text-success" : "text-foreground",
               )}
             >
@@ -200,21 +201,21 @@ export function BillCard({
             </p>
           </div>
           <div className="text-right">
-            <p className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase">
+            <p className="text-muted-foreground text-[10px] font-semibold tracking-wide uppercase">
               {isIncome ? "Fecha" : "Vencimiento"}
             </p>
-            <p className="text-foreground text-sm font-bold tabular-nums">
+            <p className="text-foreground text-xs font-bold tabular-nums">
               {formatShortDate(dueDate)}
             </p>
-            <p className="text-muted-foreground inline-flex items-center gap-1 text-[11px]">
-              <Repeat className="h-3 w-3" />
+            <p className="text-muted-foreground inline-flex items-center gap-1 text-[10px]">
+              <Repeat className="h-2.5 w-2.5" />
               {FREQ_LABELS[bill.frequency]}
             </p>
           </div>
         </div>
 
         {bill.notes && (
-          <p className="text-muted-foreground mt-3 text-xs">{bill.notes}</p>
+          <p className="text-muted-foreground mt-2 text-xs">{bill.notes}</p>
         )}
 
         {!isIncome && normalizePaymentUrl(bill.paymentUrl) && (
@@ -222,19 +223,19 @@ export function BillCard({
             href={normalizePaymentUrl(bill.paymentUrl)!}
             target="_blank"
             rel="noopener noreferrer"
-            className="border-cat-1/30 bg-cat-1-soft text-cat-1 hover:bg-cat-1 hover:text-primary-foreground mt-3 inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition-colors"
+            className="border-cat-1/30 bg-cat-1-soft text-cat-1 hover:bg-cat-1 hover:text-primary-foreground mt-2 inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-bold transition-colors"
           >
-            <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+            <ExternalLink className="h-3 w-3 shrink-0" />
             Abrir link de pago
           </a>
         )}
       </div>
 
       {!isIncome && (
-        <div className="mt-4 pt-2">
+        <div className="mt-3">
           <Button
             variant={isPaid ? "secondary" : "primary"}
-            size="md"
+            size="sm"
             onClick={onTogglePaid}
             className={cn(
               "w-full",
@@ -242,7 +243,7 @@ export function BillCard({
                 "bg-muted text-muted-foreground border-border/70 hover:bg-muted opacity-60 shadow-none hover:opacity-85",
             )}
           >
-            <CheckCircle2 className="h-4 w-4" />
+            <CheckCircle2 className="h-3.5 w-3.5" />
             {isPaid ? "Pagado (desmarcar)" : "Marcar como pagado"}
           </Button>
         </div>
@@ -438,174 +439,256 @@ export function BillRow({
   );
 }
 
-/** Fila tipo Estado de Cuenta Bancario (estable para columnas de Ingresos y Egresos) */
+export type StatementColumnKey =
+  | "kind"
+  | "description"
+  | "dueDate"
+  | "frequency"
+  | "amount"
+  | "status"
+  | "quickPay";
+
+export const DEFAULT_STATEMENT_COLUMNS: StatementColumnKey[] = [
+  "kind",
+  "description",
+  "dueDate",
+  "frequency",
+  "amount",
+  "status",
+  "quickPay",
+];
+
+interface BillStatementRowProps extends BillCardProps {
+  columns?: StatementColumnKey[];
+}
+
+/** Fila unificada tipo Estado Financiero con soporte de orden dinámico de columnas */
 export function BillStatementRow({
   bill,
   dueDate,
   status,
+  columns = DEFAULT_STATEMENT_COLUMNS,
   onTogglePaid,
   onEdit,
   onDelete,
-}: BillCardProps) {
+}: BillStatementRowProps) {
   const isIncome = bill.kind === "income";
   const isPaid = status === "paid";
   const payUrl = !isIncome ? normalizePaymentUrl(bill.paymentUrl) : null;
 
-  return (
-    <div
-      className={cn(
-        "flex items-center justify-between gap-3 border-l-3 px-4 py-3 transition-all sm:px-5",
-        isIncome
-          ? "border-l-success/70 hover:bg-card-hover/65"
-          : isPaid
-            ? "border-l-border bg-muted/40 opacity-55 grayscale-25 hover:opacity-80"
-            : status === "overdue"
-              ? "border-l-danger bg-danger-soft/15 hover:bg-danger-soft/25"
-              : status === "due-soon"
-                ? "border-l-warning bg-warning-soft/15 hover:bg-warning-soft/25"
-                : "border-l-primary/70 hover:bg-card-hover/65",
-      )}
-    >
-      {/* Bloque izquierdo: Ícono + Nombre + Fecha / Frecuencia */}
-      <div className="flex min-w-0 flex-1 items-center gap-3">
-        <span
-          className={cn(
-            "flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border",
-            isIncome
-              ? "border-success/30 bg-success-soft"
-              : isPaid
-                ? "border-border/70 bg-muted"
-                : "border-border bg-surface",
-          )}
-        >
-          <VisualThumb
-            value={
-              bill.visualIcon ||
-              (isIncome ? "💰" : inferVisualIcon(bill.name, "bill"))
-            }
-            alt={bill.name}
-            sizeClass="h-10 w-10"
-            textClass="text-lg"
-            roundedClass="rounded-2xl"
-          />
-        </span>
+  const freqLabel =
+    isIncome && bill.frequency === "once"
+      ? "Ingreso único"
+      : FREQ_LABELS[bill.frequency];
 
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <p
-              className={cn(
-                "truncate text-sm leading-snug font-extrabold",
-                isPaid && !isIncome
-                  ? "text-muted-foreground"
-                  : "text-foreground",
-              )}
-            >
-              {bill.name}
-            </p>
+  const statusBadge = isIncome
+    ? { label: "Recibido", className: "bg-success-soft text-success" }
+    : isPaid
+      ? { label: "Pagado", className: "bg-success-soft text-success" }
+      : status === "overdue"
+        ? { label: "Vencido", className: "bg-danger-soft text-danger" }
+        : { label: "Pendiente", className: "bg-warning-soft text-warning" };
 
-            {!isIncome && bill.autoPay && (
-              <span className="bg-secondary-soft text-secondary inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold">
-                <Zap className="h-2.5 w-2.5" />
-                Auto
-              </span>
+  const renderCell = (colKey: StatementColumnKey) => {
+    switch (colKey) {
+      case "kind":
+        return (
+          <td key="kind" className="px-4 py-2.5 whitespace-nowrap">
+            {isIncome ? (
+              <div className="inline-flex items-center gap-1.5">
+                <span className="bg-success-soft text-success inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
+                  <ArrowDownLeft className="h-3.5 w-3.5" />
+                </span>
+                <span className="bg-success-soft/65 text-success rounded-full px-2.5 py-0.5 text-xs font-bold">
+                  Ingreso
+                </span>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-1.5">
+                <span className="bg-primary-soft text-primary inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </span>
+                <span className="bg-primary-soft/65 text-primary rounded-full px-2.5 py-0.5 text-xs font-bold">
+                  Egreso
+                </span>
+              </div>
             )}
-          </div>
+          </td>
+        );
 
-          <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-medium tabular-nums">
+      case "description":
+        return (
+          <td key="description" className="px-3 py-2.5">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span
+                className={cn(
+                  "flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl border",
+                  isIncome
+                    ? "border-success/30 bg-success-soft"
+                    : isPaid
+                      ? "border-border/70 bg-muted"
+                      : "border-border bg-surface",
+                )}
+              >
+                <VisualThumb
+                  value={
+                    bill.visualIcon ||
+                    (isIncome ? "💰" : inferVisualIcon(bill.name, "bill"))
+                  }
+                  alt={bill.name}
+                  sizeClass="h-8 w-8"
+                  textClass="text-base"
+                  roundedClass="rounded-xl"
+                />
+              </span>
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <p
+                    className={cn(
+                      "truncate text-sm font-extrabold",
+                      isPaid && !isIncome
+                        ? "text-muted-foreground"
+                        : "text-foreground",
+                    )}
+                  >
+                    {bill.name}
+                  </p>
+                  {!isIncome && bill.autoPay && (
+                    <span className="bg-secondary-soft text-secondary inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold">
+                      <Zap className="h-2.5 w-2.5" />
+                      Auto
+                    </span>
+                  )}
+                  {payUrl && (
+                    <a
+                      href={payUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={bill.paymentUrl}
+                      className="text-cat-1 inline-flex items-center gap-0.5 text-[11px] font-bold hover:underline"
+                    >
+                      <ExternalLink className="h-3 w-3 shrink-0" />
+                    </a>
+                  )}
+                </div>
+                {bill.provider && (
+                  <p className="text-muted-foreground truncate text-[11px] font-medium">
+                    {bill.provider}
+                  </p>
+                )}
+              </div>
+            </div>
+          </td>
+        );
+
+      case "dueDate":
+        return (
+          <td
+            key="dueDate"
+            className="px-3 py-2.5 text-center text-xs whitespace-nowrap tabular-nums sm:text-sm"
+          >
             <span
               className={cn(
-                !isIncome &&
-                  !isPaid &&
-                  status === "overdue" &&
-                  "text-danger font-bold",
-                !isIncome &&
-                  !isPaid &&
-                  status === "due-soon" &&
-                  "text-warning font-bold",
+                !isIncome && !isPaid && status === "overdue"
+                  ? "text-danger font-extrabold"
+                  : !isIncome && !isPaid && status === "due-soon"
+                    ? "text-warning font-bold"
+                    : "text-muted-foreground font-semibold",
               )}
             >
               {formatShortDate(dueDate)}
             </span>
-            {!isIncome && !isPaid && status === "overdue" && (
-              <span className="bg-danger-soft text-danger py-0.2 rounded-full px-1.5 text-[10px] font-bold">
-                Vencido
-              </span>
-            )}
-            {!isIncome && !isPaid && status === "due-soon" && (
-              <span className="bg-warning-soft text-warning py-0.2 rounded-full px-1.5 text-[10px] font-bold">
-                Por vencer
-              </span>
-            )}
-            <span aria-hidden="true">·</span>
-            <span className="inline-flex items-center gap-1">
-              <Repeat className="h-3 w-3 shrink-0" />
-              {FREQ_LABELS[bill.frequency]}
-            </span>
-            {bill.provider && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span className="truncate">{bill.provider}</span>
-              </>
-            )}
-            {payUrl && (
-              <>
-                <span aria-hidden="true">·</span>
-                <a
-                  href={payUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={bill.paymentUrl}
-                  className="text-cat-1 inline-flex items-center gap-0.5 font-bold hover:underline"
-                >
-                  <ExternalLink className="h-3 w-3 shrink-0" />
-                  Link
-                </a>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+          </td>
+        );
 
-      {/* Bloque derecho: Monto + Acción bancaria + Editar / Eliminar */}
-      <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
-        <div className="text-right tabular-nums">
-          <p
-            className={cn(
-              "text-sm font-extrabold whitespace-nowrap sm:text-base",
-              isIncome
-                ? "text-success"
-                : isPaid
-                  ? "text-muted-foreground"
-                  : "text-foreground",
-            )}
+      case "frequency":
+        return (
+          <td
+            key="frequency"
+            className="text-muted-foreground px-3 py-2.5 text-center text-xs font-medium whitespace-nowrap sm:text-sm"
           >
-            {isIncome ? "+" : ""}
-            {formatCurrency(bill.amount, bill.currency)}
-          </p>
-        </div>
+            {freqLabel}
+          </td>
+        );
 
-        <div className="flex items-center gap-0.5 sm:gap-1">
-          {!isIncome && (
-            <Button
-              variant={isPaid ? "secondary" : "primary"}
-              size="sm"
-              onClick={onTogglePaid}
-              title={isPaid ? "Desmarcar pago" : "Marcar como pagado"}
+      case "amount":
+        return (
+          <td
+            key="amount"
+            className="px-3 py-2.5 text-right whitespace-nowrap tabular-nums"
+          >
+            <span
               className={cn(
-                "min-h-8 px-2.5 py-1 text-xs sm:px-3",
-                isPaid &&
-                  "border-border/70 bg-muted text-muted-foreground hover:bg-muted opacity-65 shadow-none hover:opacity-90",
+                "text-sm font-extrabold",
+                isIncome
+                  ? "text-success"
+                  : isPaid
+                    ? "text-muted-foreground"
+                    : "text-foreground",
               )}
             >
-              <CheckCircle2
-                className={cn("h-3.5 w-3.5", isPaid && "text-success")}
-              />
-              <span className="hidden sm:inline">
-                {isPaid ? "Pagado" : "Pagar"}
-              </span>
-            </Button>
-          )}
+              {isIncome ? "+" : ""}
+              {formatCurrency(bill.amount, bill.currency)}
+            </span>
+          </td>
+        );
 
+      case "status":
+        return (
+          <td key="status" className="px-3 py-2.5 text-center whitespace-nowrap">
+            <span
+              className={cn(
+                "inline-flex items-center rounded-full px-3 py-0.5 text-xs font-bold",
+                statusBadge.className,
+              )}
+            >
+              {statusBadge.label}
+            </span>
+          </td>
+        );
+
+      case "quickPay":
+        return (
+          <td key="quickPay" className="px-2 py-2.5 text-center whitespace-nowrap">
+            {!isIncome &&
+              (isPaid ? (
+                <button
+                  type="button"
+                  onClick={onTogglePaid}
+                  title="Desmarcar pago"
+                  className="border-border bg-muted text-muted-foreground hover:text-foreground inline-flex cursor-pointer items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition-colors"
+                >
+                  <CheckCircle2 className="text-success h-3.5 w-3.5" />
+                  <span>Pagado</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onTogglePaid}
+                  className="bg-primary hover:bg-primary-hover text-primary-foreground inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-bold shadow-2xs transition-all active:scale-[0.98]"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>Pagar</span>
+                </button>
+              ))}
+          </td>
+        );
+    }
+  };
+
+  return (
+    <tr
+      className={cn(
+        "hover:bg-card-hover/65 transition-colors",
+        !isIncome && isPaid && "bg-muted/25",
+      )}
+    >
+      {columns.map((colKey) => renderCell(colKey))}
+
+      {/* Acciones fijas al extremo derecho */}
+      <td className="px-4 py-2.5 text-right whitespace-nowrap">
+        <div className="inline-flex items-center justify-end gap-0.5">
           <Button
             variant="ghost"
             size="icon"
@@ -625,7 +708,7 @@ export function BillStatementRow({
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }

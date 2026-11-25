@@ -1,18 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDownLeft,
+  ArrowUpDown,
   ArrowUpRight,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CreditCard,
   FileSpreadsheet,
+  GripVertical,
   LayoutGrid,
   Plus,
   Search,
-  Wallet,
   X,
 } from "lucide-react";
 import { NotificationPopover } from "@/components/shared/layout/NotificationPopover";
@@ -29,11 +31,35 @@ import {
   toMonthKey,
 } from "@/lib/dates";
 import { getBillOccurrenceKey, getBillStatus } from "@/lib/recurrence";
+import { readStorage, writeStorage } from "@/lib/storage";
 import type { BillKind, BillStatus, RecurringBill } from "@/types/bills";
-import { BillCard, BillStatementRow } from "./BillCard";
+import {
+  BillCard,
+  BillStatementRow,
+  DEFAULT_STATEMENT_COLUMNS,
+  type StatementColumnKey,
+} from "./BillCard";
 import { BillFormModal } from "./BillFormModal";
 
 type BillViewMode = "statement" | "cards";
+type StatementKindFilter = "all" | "income" | "expense";
+type StatementStatusFilter = "all" | "pending" | "overdue" | "paid";
+type StatementSortField = "dueDate" | "amount" | "name";
+
+const STATEMENT_PAGE_SIZE = 8;
+const STATEMENT_COLS_STORAGE_KEY = "calendario_statement_cols_v1";
+
+function normalizeStatementColumns(raw: unknown): StatementColumnKey[] {
+  if (!Array.isArray(raw)) return DEFAULT_STATEMENT_COLUMNS;
+  const valid = raw.filter((item): item is StatementColumnKey =>
+    DEFAULT_STATEMENT_COLUMNS.includes(item as StatementColumnKey),
+  );
+  const unique = Array.from(new Set(valid));
+  for (const col of DEFAULT_STATEMENT_COLUMNS) {
+    if (!unique.includes(col)) unique.push(col);
+  }
+  return unique;
+}
 
 function doesBillApplyToMonth(
   bill: RecurringBill,
@@ -67,7 +93,53 @@ export function BillsDashboard() {
   const [monthOffset, setMonthOffset] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<BillViewMode>("statement");
+  const [kindFilter, setKindFilter] = useState<StatementKindFilter>("all");
+  const [statusFilter, setStatusFilter] =
+    useState<StatementStatusFilter>("all");
+  const [sortField, setSortField] = useState<StatementSortField>("dueDate");
+  const [sortAsc, setSortAsc] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [columnOrder, setColumnOrder] = useState<StatementColumnKey[]>(
+    DEFAULT_STATEMENT_COLUMNS,
+  );
+  const [draggedCol, setDraggedCol] = useState<StatementColumnKey | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<StatementColumnKey | null>(
+    null,
+  );
   const [modalOpen, setModalOpen] = useState(false);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      const saved = readStorage<StatementColumnKey[] | null>(
+        STATEMENT_COLS_STORAGE_KEY,
+        null,
+      );
+      if (saved) {
+        setColumnOrder(normalizeStatementColumns(saved));
+      }
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, []);
+
+  const handleColumnDrop = (targetCol: StatementColumnKey) => {
+    if (!draggedCol || draggedCol === targetCol) {
+      setDraggedCol(null);
+      setDragOverCol(null);
+      return;
+    }
+    setColumnOrder((prev) => {
+      const fromIdx = prev.indexOf(draggedCol);
+      const toIdx = prev.indexOf(targetCol);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+      const next = [...prev];
+      next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, draggedCol);
+      writeStorage(STATEMENT_COLS_STORAGE_KEY, next);
+      return next;
+    });
+    setDraggedCol(null);
+    setDragOverCol(null);
+  };
   const [modalDefaultKind, setModalDefaultKind] = useState<BillKind>("expense");
   const [editingBill, setEditingBill] = useState<RecurringBill | null>(null);
 
@@ -131,21 +203,92 @@ export function BillsDashboard() {
     );
   }, [enrichedBills, searchQuery]);
 
-  /** 2 columnas estables: Ingresos | Egresos (los servicios no cambian de columna al pagar) */
-  const statementGroups = useMemo(() => {
-    const incomes = searchedBills.filter((e) => e.isIncome);
-    const expenses = searchedBills.filter((e) => !e.isIncome);
+  /** Contadores para las píldoras de filtro sobre los resultados buscados */
+  const filterCounts = useMemo(() => {
+    let incomes = 0;
+    let expenses = 0;
+    let pending = 0;
+    let overdue = 0;
+    let paid = 0;
 
-    const incomesSum = incomes.reduce((acc, e) => acc + e.bill.amount, 0);
-    const expensesSum = expenses.reduce((acc, e) => acc + e.bill.amount, 0);
+    for (const entry of searchedBills) {
+      if (entry.isIncome) {
+        incomes += 1;
+        paid += 1;
+      } else {
+        expenses += 1;
+        if (entry.status === "paid") {
+          paid += 1;
+        } else {
+          pending += 1;
+          if (entry.status === "overdue") {
+            overdue += 1;
+          }
+        }
+      }
+    }
 
     return {
+      all: searchedBills.length,
       incomes,
       expenses,
-      incomesSum,
-      expensesSum,
+      pending,
+      overdue,
+      paid,
     };
   }, [searchedBills]);
+
+  /** Lista filtrada y ordenada para la tabla de Estado Financiero */
+  const filteredStatementBills = useMemo(() => {
+    const filtered = searchedBills.filter((entry) => {
+      if (kindFilter === "income" && !entry.isIncome) return false;
+      if (kindFilter === "expense" && entry.isIncome) return false;
+
+      if (statusFilter === "pending") {
+        return !entry.isIncome && entry.status !== "paid";
+      }
+      if (statusFilter === "overdue") {
+        return !entry.isIncome && entry.status === "overdue";
+      }
+      if (statusFilter === "paid") {
+        return entry.isIncome || entry.status === "paid";
+      }
+      return true;
+    });
+
+    const sorted = [...filtered].sort((a, b) => {
+      let cmp = 0;
+      if (sortField === "dueDate") {
+        // Ingresos primero si tienen misma fecha, o por fecha de vencimiento
+        cmp = a.dueDate.localeCompare(b.dueDate);
+        if (cmp === 0 && a.isIncome !== b.isIncome) {
+          cmp = a.isIncome ? -1 : 1;
+        }
+      } else if (sortField === "amount") {
+        cmp = a.bill.amount - b.bill.amount;
+      } else {
+        cmp = a.bill.name.localeCompare(b.bill.name, "es");
+      }
+      return sortAsc ? cmp : -cmp;
+    });
+
+    return sorted;
+  }, [searchedBills, kindFilter, statusFilter, sortField, sortAsc]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredStatementBills.length / STATEMENT_PAGE_SIZE),
+  );
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedStatementBills = useMemo(() => {
+    const start = (safePage - 1) * STATEMENT_PAGE_SIZE;
+    return filteredStatementBills.slice(start, start + STATEMENT_PAGE_SIZE);
+  }, [filteredStatementBills, safePage]);
+
+  const toggleStatusFilter = (target: Exclude<StatementStatusFilter, "all">) => {
+    setStatusFilter((prev) => (prev === target ? "all" : target));
+    setCurrentPage(1);
+  };
 
   const totals = useMemo(() => {
     let totalIncome = 0;
@@ -172,7 +315,7 @@ export function BillsDashboard() {
 
     const paidPct =
       totalExpense > 0 ? Math.round((paidExpense / totalExpense) * 100) : 0;
-    const realBalance = totalIncome - paidExpense;
+    const balance = totalIncome - totalExpense;
 
     return {
       totalIncome,
@@ -182,12 +325,12 @@ export function BillsDashboard() {
       expenseCount,
       paidCount,
       paidPct,
-      realBalance,
+      balance,
     };
   }, [enrichedBills]);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {/* Encabezado principal con filtro de mes centrado */}
       <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-[1fr_auto_1fr]">
         <h1 className="text-foreground text-2xl font-extrabold tracking-tight sm:text-3xl">
@@ -245,115 +388,108 @@ export function BillsDashboard() {
             onClick={() => openNewModal("expense")}
           >
             <Plus className="h-4 w-4" />
-            Nuevo pago
+            Nuevo Egreso
           </Button>
           <NotificationPopover />
         </div>
       </div>
 
-      {/* 2 Tarjetas Ejecutivas Simétricas y Minimalistas */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Tarjeta 1: Mi Saldo actual es: */}
+      {/* 3 Tarjetas KPI: Ingresos, Egresos y Saldo Disponible */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {/* Tarjeta 1: Ingresos */}
         <section
-          aria-label="Mi Saldo actual"
-          className="border-border bg-card flex flex-col rounded-3xl border p-5 shadow-2xs"
+          aria-label="Ingresos del mes"
+          className="border-border bg-card hover:border-primary/30 flex flex-col justify-between gap-1.5 rounded-2xl border px-4 py-3 shadow-2xs transition-colors"
         >
-          <div className="flex items-center gap-2.5">
-            <span className="bg-primary-soft text-primary flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl">
-              <Wallet className="h-4 w-4" />
-            </span>
-            <h2 className="text-foreground text-sm leading-tight font-extrabold sm:text-base">
-              Mi Saldo actual es:
-            </h2>
-          </div>
+          <h2 className="text-muted-foreground text-xs font-semibold">
+            Ingresos
+          </h2>
 
-          <div className="flex flex-1 items-center pt-3 pb-1">
-            <p
-              className={cn(
-                "text-3xl leading-tight font-extrabold tabular-nums sm:text-4xl",
-                totals.totalIncome > 0
-                  ? totals.realBalance >= 0
-                    ? "text-success"
-                    : "text-danger"
-                  : "text-foreground",
-              )}
-            >
-              {totals.totalIncome > 0
-                ? `${totals.realBalance > 0 ? "+" : ""}${formatCurrency(totals.realBalance)}`
-                : formatCurrency(-totals.paidExpense)}
-            </p>
-          </div>
+          <p className="text-success text-xl leading-tight font-extrabold tracking-tight tabular-nums sm:text-2xl">
+            {formatCurrency(totals.totalIncome)}
+          </p>
         </section>
 
-        {/* Tarjeta 2: Mi deuda pagada es: */}
+        {/* Tarjeta 2: Egresos */}
         <section
-          aria-label="Mi deuda pagada"
-          className="border-border bg-card flex flex-col justify-between rounded-3xl border p-5 shadow-2xs"
+          aria-label="Egresos del mes"
+          className="border-border bg-card hover:border-primary/30 flex flex-col justify-between gap-1.5 rounded-2xl border px-4 py-3 shadow-2xs transition-colors"
         >
-          <div className="flex items-center justify-between gap-2.5">
-            <div className="flex items-center gap-2.5">
-              <span className="bg-secondary-soft text-secondary flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl">
-                <CheckCircle2 className="h-4 w-4" />
-              </span>
-              <h2 className="text-foreground text-sm leading-tight font-extrabold sm:text-base">
-                Mi deuda pagada es:
-              </h2>
-            </div>
+          <h2 className="text-muted-foreground text-xs font-semibold">
+            Egresos
+          </h2>
 
-            <span
-              className={cn(
-                "rounded-full px-3 py-1 text-xs font-extrabold tabular-nums",
-                totals.paidPct === 100 && totals.expenseCount > 0
-                  ? "bg-success-soft text-success"
-                  : "bg-primary-soft text-primary",
-              )}
-            >
-              {totals.paidPct}% pagado
-            </span>
-          </div>
+          <p className="text-primary text-xl leading-tight font-extrabold tracking-tight tabular-nums sm:text-2xl">
+            {formatCurrency(totals.totalExpense)}
+          </p>
+        </section>
 
-          <div className="mt-5">
-            <div className="mb-2.5 flex items-end justify-between gap-3 tabular-nums">
-              <div>
-                <span className="text-muted-foreground block text-xs font-bold">
-                  Pagado
-                </span>
-                <p className="text-success mt-0.5 text-2xl leading-none font-extrabold sm:text-3xl">
-                  {formatCurrency(totals.paidExpense)}
-                </p>
-              </div>
+        {/* Tarjeta 3: Saldo Disponible */}
+        <section
+          aria-label="Saldo Disponible"
+          className="border-border bg-card hover:border-primary/30 flex flex-col justify-between gap-1.5 rounded-2xl border px-4 py-3 shadow-2xs transition-colors"
+        >
+          <h2 className="text-muted-foreground text-xs font-semibold">
+            Saldo Disponible
+          </h2>
 
-              <div className="text-right">
-                <span className="text-muted-foreground block text-xs font-bold">
-                  Deuda total
-                </span>
-                <p className="text-foreground mt-0.5 text-2xl leading-none font-extrabold sm:text-3xl">
-                  {formatCurrency(totals.totalExpense)}
-                </p>
-              </div>
-            </div>
-
-            <div
-              className="border-border/70 bg-muted h-4 w-full overflow-hidden rounded-full border p-0.5"
-              role="progressbar"
-              aria-valuenow={totals.paidPct}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label="Progreso de pagos sobre la deuda total"
-            >
-              {totals.paidPct > 0 && (
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-all duration-300",
-                    totals.paidPct === 100 ? "bg-success" : "bg-primary",
-                  )}
-                  style={{ width: `${totals.paidPct}%` }}
-                />
-              )}
-            </div>
-          </div>
+          <p
+            className={cn(
+              "text-xl leading-tight font-extrabold tracking-tight tabular-nums sm:text-2xl",
+              totals.balance > 0
+                ? "text-success"
+                : totals.balance < 0
+                  ? "text-danger"
+                  : "text-foreground",
+            )}
+          >
+            {formatCurrency(totals.balance)}
+          </p>
         </section>
       </div>
+
+      {/* Progreso compacto de pagos del mes */}
+      <section
+        aria-label="Mi deuda pagada"
+        className="border-border bg-card flex flex-col gap-2 rounded-2xl border px-4 py-2.5 shadow-2xs"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="bg-secondary-soft text-secondary flex h-6 w-6 shrink-0 items-center justify-center rounded-lg">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+            </span>
+            <h2 className="text-foreground text-xs leading-tight font-extrabold sm:text-sm">
+              Mi deuda pagada es:
+            </h2>
+            <span className="text-primary text-xs font-extrabold tabular-nums sm:text-sm">
+              {formatCurrency(totals.paidExpense)}
+            </span>
+          </div>
+
+          <span className="text-foreground text-xs font-bold tabular-nums sm:text-sm">
+            {formatCurrency(totals.totalExpense)}
+          </span>
+        </div>
+
+        <div
+          className="border-border/70 bg-muted h-2.5 w-full overflow-hidden rounded-full border p-0.5"
+          role="progressbar"
+          aria-valuenow={totals.paidPct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Progreso de pagos sobre la deuda total"
+        >
+          {totals.paidPct > 0 && (
+            <div
+              className={cn(
+                "h-full rounded-full transition-all duration-300",
+                totals.paidPct === 100 ? "bg-success" : "bg-primary",
+              )}
+              style={{ width: `${totals.paidPct}%` }}
+            />
+          )}
+        </div>
+      </section>
 
       {/* Barra limpia: Título + Buscador + Selector de vista */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -370,15 +506,21 @@ export function BillsDashboard() {
             <input
               type="search"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar servicio o ingreso..."
-              aria-label="Buscar servicio o ingreso"
-              className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/25 h-9 w-full rounded-2xl border pr-8 pl-8 text-xs font-medium shadow-2xs transition-all focus:ring-2 focus:outline-none sm:w-56"
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Buscar ingreso o gasto..."
+              aria-label="Buscar ingreso o gasto"
+              className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/25 h-9 w-full rounded-full border pr-8 pl-8 text-xs font-medium shadow-2xs transition-all focus:ring-2 focus:outline-none sm:w-56"
             />
             {searchQuery && (
               <button
                 type="button"
-                onClick={() => setSearchQuery("")}
+                onClick={() => {
+                  setSearchQuery("");
+                  setCurrentPage(1);
+                }}
                 aria-label="Limpiar búsqueda"
                 className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2 cursor-pointer"
               >
@@ -390,14 +532,14 @@ export function BillsDashboard() {
           <div
             role="group"
             aria-label="Cambiar vista de movimientos"
-            className="border-border bg-card inline-flex items-center gap-1 rounded-2xl border p-1 shadow-2xs"
+            className="border-border bg-card inline-flex items-center gap-1 rounded-full border p-1 shadow-2xs"
           >
             <button
               type="button"
               onClick={() => setViewMode("statement")}
               aria-pressed={viewMode === "statement"}
               className={cn(
-                "inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition-all",
+                "inline-flex min-h-7 cursor-pointer items-center gap-1.5 rounded-full px-3.5 text-xs font-bold transition-all",
                 viewMode === "statement"
                   ? "bg-primary text-primary-foreground shadow-2xs"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -411,7 +553,7 @@ export function BillsDashboard() {
               onClick={() => setViewMode("cards")}
               aria-pressed={viewMode === "cards"}
               className={cn(
-                "inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition-all",
+                "inline-flex min-h-7 cursor-pointer items-center gap-1.5 rounded-full px-3.5 text-xs font-bold transition-all",
                 viewMode === "cards"
                   ? "bg-primary text-primary-foreground shadow-2xs"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -425,129 +567,396 @@ export function BillsDashboard() {
       </div>
 
       {viewMode === "statement" ? (
-        /* 2 Columnas Simétricas 50/50 alineadas con las 2 tarjetas superiores: Ingresos | Egresos */
-        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-          {/* Columna 1: Ingresos */}
-          <section
-            aria-label="Columna de Ingresos"
-            className="border-border bg-card flex flex-col overflow-hidden rounded-3xl border shadow-xs"
-          >
-            <div className="border-border bg-success-soft/25 flex items-center justify-between gap-3 border-b px-5 py-3.5">
-              <div className="flex items-center gap-2.5">
-                <span className="bg-success-soft text-success flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl">
-                  <ArrowDownLeft className="h-4 w-4" />
-                </span>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-foreground text-sm font-extrabold sm:text-base">
-                    Ingresos
-                  </h3>
-                  <span className="bg-success text-primary-foreground rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums">
-                    {statementGroups.incomes.length}
-                  </span>
-                </div>
-              </div>
-
-              <p className="text-success text-base font-extrabold tabular-nums sm:text-lg">
-                +{formatCurrency(statementGroups.incomesSum)}
-              </p>
-            </div>
-
-            {statementGroups.incomes.length === 0 ? (
-              <div className="px-6 py-10 text-center">
-                <p className="text-muted-foreground text-sm font-semibold">
-                  Sin ingresos registrados
-                </p>
-                <Button
-                  variant="soft"
-                  size="sm"
-                  onClick={() => openNewModal("income")}
-                  className="mt-3"
-                >
-                  <Plus className="h-4 w-4" />
-                  Agregar ingreso
-                </Button>
-              </div>
-            ) : (
-              <div className="divide-border divide-y">
-                {statementGroups.incomes.map(
-                  ({ bill, dueDate, occKey, status }) => (
-                    <BillStatementRow
-                      key={bill.id}
-                      bill={bill}
-                      dueDate={dueDate}
-                      status={status}
-                      onTogglePaid={() => toggleBillPaid(bill.id, occKey)}
-                      onEdit={() => handleEditBill(bill)}
-                      onDelete={() => deleteBill(bill.id)}
-                    />
-                  ),
+        <section
+          aria-label="Tabla de Estado Financiero"
+          className="border-border bg-card flex flex-col overflow-hidden rounded-3xl border shadow-xs"
+        >
+          {/* Barra superior de filtros por Tipo, Estado y Ordenamiento */}
+          <div className="border-border flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3.5 sm:px-5">
+            {/* Grupo izquierdo: Todos / Ingresos / Egresos */}
+            <div
+              role="group"
+              aria-label="Filtrar por tipo de movimiento"
+              className="flex flex-wrap items-center gap-2"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setKindFilter("all");
+                  setCurrentPage(1);
+                }}
+                aria-pressed={kindFilter === "all"}
+                className={cn(
+                  "inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold tabular-nums transition-all",
+                  kindFilter === "all"
+                    ? "bg-primary text-primary-foreground shadow-2xs"
+                    : "border-border bg-card text-foreground hover:bg-muted border",
                 )}
-              </div>
-            )}
-          </section>
+              >
+                <span>Todos ({filterCounts.all})</span>
+              </button>
 
-          {/* Columna 2: Egresos */}
-          <section
-            aria-label="Columna de Egresos"
-            className="border-border bg-card flex flex-col overflow-hidden rounded-3xl border shadow-xs"
-          >
-            <div className="border-border bg-primary-soft/30 flex items-center justify-between gap-3 border-b px-5 py-3.5">
-              <div className="flex items-center gap-2.5">
-                <span className="bg-primary-soft text-primary flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl">
-                  <ArrowUpRight className="h-4 w-4" />
-                </span>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-foreground text-sm font-extrabold sm:text-base">
-                    Egresos
-                  </h3>
-                  <span className="bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums">
-                    {statementGroups.expenses.length}
-                  </span>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setKindFilter("income");
+                  setCurrentPage(1);
+                }}
+                aria-pressed={kindFilter === "income"}
+                className={cn(
+                  "inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold tabular-nums transition-all",
+                  kindFilter === "income"
+                    ? "bg-success text-primary-foreground shadow-2xs"
+                    : "border-border bg-card text-foreground hover:bg-muted border",
+                )}
+              >
+                <ArrowDownLeft
+                  className={cn(
+                    "h-3.5 w-3.5",
+                    kindFilter === "income"
+                      ? "text-primary-foreground"
+                      : "text-success",
+                  )}
+                />
+                <span>Ingresos ({filterCounts.incomes})</span>
+              </button>
 
-              <p className="text-primary text-base font-extrabold tabular-nums sm:text-lg">
-                {formatCurrency(statementGroups.expensesSum)}
-              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setKindFilter("expense");
+                  setCurrentPage(1);
+                }}
+                aria-pressed={kindFilter === "expense"}
+                className={cn(
+                  "inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold tabular-nums transition-all",
+                  kindFilter === "expense"
+                    ? "bg-primary text-primary-foreground shadow-2xs"
+                    : "border-border bg-card text-foreground hover:bg-muted border",
+                )}
+              >
+                <ArrowUpRight
+                  className={cn(
+                    "h-3.5 w-3.5",
+                    kindFilter === "expense"
+                      ? "text-primary-foreground"
+                      : "text-primary",
+                  )}
+                />
+                <span>Egresos ({filterCounts.expenses})</span>
+              </button>
             </div>
 
-            {statementGroups.expenses.length === 0 ? (
-              <div className="px-6 py-10 text-center">
-                <CreditCard className="text-muted-foreground/50 mx-auto h-9 w-9" />
-                <p className="text-muted-foreground mt-2 text-sm font-semibold">
-                  Sin egresos registrados
-                </p>
+            {/* Grupo derecho: Estados (Pendientes / Vencidos / Pagados) + Ordenar por */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+              <span
+                aria-hidden="true"
+                className="bg-border mr-1 hidden h-6 w-px xl:block"
+              />
+
+              <button
+                type="button"
+                onClick={() => toggleStatusFilter("pending")}
+                aria-pressed={statusFilter === "pending"}
+                className={cn(
+                  "inline-flex cursor-pointer items-center rounded-full px-3 py-1.5 text-xs font-bold tabular-nums transition-all",
+                  statusFilter === "pending"
+                    ? "bg-warning-soft text-warning ring-warning/50 ring-2"
+                    : "border-border bg-card text-foreground hover:bg-muted border",
+                )}
+              >
+                Pendientes ({filterCounts.pending})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleStatusFilter("overdue")}
+                aria-pressed={statusFilter === "overdue"}
+                className={cn(
+                  "bg-danger-soft text-danger inline-flex cursor-pointer items-center rounded-full px-3 py-1.5 text-xs font-bold tabular-nums transition-all hover:opacity-90",
+                  statusFilter === "overdue" && "ring-danger/50 ring-2",
+                )}
+              >
+                Vencidos ({filterCounts.overdue})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleStatusFilter("paid")}
+                aria-pressed={statusFilter === "paid"}
+                className={cn(
+                  "bg-success-soft text-success inline-flex cursor-pointer items-center rounded-full px-3 py-1.5 text-xs font-bold tabular-nums transition-all hover:opacity-90",
+                  statusFilter === "paid" && "ring-success/50 ring-2",
+                )}
+              >
+                Pagados ({filterCounts.paid})
+              </button>
+
+              <div className="relative">
+                <select
+                  aria-label="Ordenar movimientos por"
+                  value={sortField}
+                  onChange={(e) => {
+                    const nextField = e.target.value as StatementSortField;
+                    setSortField(nextField);
+                    setSortAsc(nextField !== "amount");
+                    setCurrentPage(1);
+                  }}
+                  className="border-border bg-card text-foreground hover:bg-muted focus:border-primary focus:ring-primary/25 cursor-pointer appearance-none rounded-full border py-1.5 pr-8 pl-3.5 text-xs font-semibold transition-colors focus:ring-2 focus:outline-none"
+                >
+                  <option value="dueDate">Ordenar por: Vencimiento</option>
+                  <option value="amount">Ordenar por: Monto</option>
+                  <option value="name">Ordenar por: Descripción</option>
+                </select>
+                <ChevronDown
+                  aria-hidden="true"
+                  className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-3.5 w-3.5 -translate-y-1/2"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Tabla unificada de movimientos */}
+          {filteredStatementBills.length === 0 ? (
+            <div className="px-6 py-12 text-center">
+              <CreditCard className="text-muted-foreground/50 mx-auto h-9 w-9" />
+              <p className="text-muted-foreground mt-2 text-sm font-semibold">
+                No hay registros que coincidan con los filtros seleccionados
+              </p>
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                {(kindFilter !== "all" ||
+                  statusFilter !== "all" ||
+                  searchQuery.trim() !== "") && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setKindFilter("all");
+                      setStatusFilter("all");
+                      setSearchQuery("");
+                      setCurrentPage(1);
+                    }}
+                  >
+                    Limpiar filtros
+                  </Button>
+                )}
                 <Button
                   variant="soft"
                   size="sm"
                   onClick={() => openNewModal("expense")}
-                  className="mt-3"
                 >
                   <Plus className="h-4 w-4" />
                   Nuevo pago
                 </Button>
               </div>
-            ) : (
-              <div className="divide-border divide-y">
-                {statementGroups.expenses.map(
-                  ({ bill, dueDate, occKey, status }) => (
-                    <BillStatementRow
-                      key={bill.id}
-                      bill={bill}
-                      dueDate={dueDate}
-                      status={status}
-                      onTogglePaid={() => toggleBillPaid(bill.id, occKey)}
-                      onEdit={() => handleEditBill(bill)}
-                      onDelete={() => deleteBill(bill.id)}
-                    />
-                  ),
-                )}
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] border-collapse text-left">
+                  <thead>
+                    <tr className="border-border bg-surface/80 text-muted-foreground border-b text-xs font-bold">
+                      {columnOrder.map((colKey) => {
+                        const isDragging = draggedCol === colKey;
+                        const isOver =
+                          dragOverCol === colKey && draggedCol !== colKey;
+
+                        const labelMap: Record<StatementColumnKey, string> = {
+                          kind: "Tipo",
+                          description: "Descripción",
+                          dueDate: "Fecha / Vencimiento",
+                          frequency: "Frecuencia",
+                          amount: "Monto",
+                          status: "Estado",
+                          quickPay: "Pago",
+                        };
+
+                        return (
+                          <th
+                            key={colKey}
+                            scope="col"
+                            draggable
+                            title="Mantén presionado y arrastra para mover esta columna"
+                            onDragStart={(e) => {
+                              setDraggedCol(colKey);
+                              e.dataTransfer.effectAllowed = "move";
+                              e.dataTransfer.setData("text/plain", colKey);
+                            }}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.dataTransfer.dropEffect = "move";
+                              if (dragOverCol !== colKey) {
+                                setDragOverCol(colKey);
+                              }
+                            }}
+                            onDragLeave={() => {
+                              if (dragOverCol === colKey) {
+                                setDragOverCol(null);
+                              }
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              handleColumnDrop(colKey);
+                            }}
+                            onDragEnd={() => {
+                              setDraggedCol(null);
+                              setDragOverCol(null);
+                            }}
+                            className={cn(
+                              "group cursor-grab py-2.5 whitespace-nowrap transition-all select-none active:cursor-grabbing",
+                              colKey === "kind"
+                                ? "px-4"
+                                : colKey === "quickPay" ||
+                                    colKey === "dueDate" ||
+                                    colKey === "frequency" ||
+                                    colKey === "status"
+                                  ? "px-3 text-center"
+                                  : colKey === "amount"
+                                    ? "px-3 text-right"
+                                    : "px-3",
+                              isDragging && "opacity-40",
+                              isOver &&
+                                "bg-primary-soft/75 text-primary ring-primary/50 ring-2 ring-inset",
+                            )}
+                          >
+                            <div
+                              className={cn(
+                                "inline-flex items-center gap-1",
+                                colKey === "amount" && "justify-end",
+                                (colKey === "quickPay" ||
+                                  colKey === "dueDate" ||
+                                  colKey === "frequency" ||
+                                  colKey === "status") &&
+                                  "justify-center",
+                              )}
+                            >
+                              <GripVertical
+                                aria-hidden="true"
+                                className="text-muted-foreground/40 group-hover:text-muted-foreground h-3.5 w-3.5 shrink-0 transition-colors"
+                              />
+                              {colKey === "dueDate" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (sortField === "dueDate") {
+                                      setSortAsc((prev) => !prev);
+                                    } else {
+                                      setSortField("dueDate");
+                                      setSortAsc(true);
+                                    }
+                                    setCurrentPage(1);
+                                  }}
+                                  className="hover:text-foreground inline-flex cursor-pointer items-center gap-1 font-bold transition-colors"
+                                >
+                                  <span>
+                                    Fecha /{" "}
+                                    <span className="decoration-muted-foreground/60 underline underline-offset-2">
+                                      Vencimiento
+                                    </span>
+                                  </span>
+                                  <ArrowUpDown className="h-3.5 w-3.5" />
+                                </button>
+                              ) : colKey === "quickPay" ? (
+                                <span className="text-muted-foreground/75">
+                                  {labelMap[colKey]}
+                                </span>
+                              ) : (
+                                <span>{labelMap[colKey]}</span>
+                              )}
+                            </div>
+                          </th>
+                        );
+                      })}
+                      <th
+                        scope="col"
+                        className="px-4 py-2.5 text-right whitespace-nowrap"
+                      >
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-border divide-y">
+                    {paginatedStatementBills.map(
+                      ({ bill, dueDate, occKey, status }) => (
+                        <BillStatementRow
+                          key={bill.id}
+                          bill={bill}
+                          dueDate={dueDate}
+                          status={status}
+                          columns={columnOrder}
+                          onTogglePaid={() => toggleBillPaid(bill.id, occKey)}
+                          onEdit={() => handleEditBill(bill)}
+                          onDelete={() => deleteBill(bill.id)}
+                        />
+                      ),
+                    )}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </section>
-        </div>
+
+              {/* Pie de tabla: Contador de registros + Paginación */}
+              <div className="border-border flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 sm:px-5">
+                <p className="text-muted-foreground text-xs font-medium tabular-nums">
+                  {totalPages > 1
+                    ? `Mostrando ${(safePage - 1) * STATEMENT_PAGE_SIZE + 1}–${Math.min(
+                        safePage * STATEMENT_PAGE_SIZE,
+                        filteredStatementBills.length,
+                      )} de ${filteredStatementBills.length} registros`
+                    : `Mostrando ${filteredStatementBills.length} ${
+                        filteredStatementBills.length === 1
+                          ? "registro"
+                          : "registros"
+                      }`}
+                </p>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={safePage <= 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    aria-label="Página anterior"
+                    className="border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border transition-colors disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+
+                  {Array.from({ length: totalPages }, (_, idx) => idx + 1).map(
+                    (pageNum) => (
+                      <button
+                        key={pageNum}
+                        type="button"
+                        onClick={() => setCurrentPage(pageNum)}
+                        aria-current={pageNum === safePage ? "page" : undefined}
+                        className={cn(
+                          "inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-xs font-extrabold tabular-nums transition-all",
+                          pageNum === safePage
+                            ? "bg-primary text-primary-foreground shadow-2xs"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        )}
+                      >
+                        {pageNum}
+                      </button>
+                    ),
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={safePage >= totalPages}
+                    onClick={() =>
+                      setCurrentPage((p) => Math.min(totalPages, p + 1))
+                    }
+                    aria-label="Página siguiente"
+                    className="border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border transition-colors disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </section>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {searchedBills.map(({ bill, dueDate, occKey, status }) => (
             <BillCard
               key={bill.id}
