@@ -34,12 +34,13 @@ const STATUS_STYLES: Record<
 > = {
   paid: {
     label: "Pagado",
-    className: "bg-success-soft text-success border border-success/30",
+    className: "bg-danger-soft text-danger border border-danger/30",
     icon: CheckCircle2,
   },
   overdue: {
     label: "Vencido",
-    className: "bg-danger-soft text-danger border border-danger/30",
+    className:
+      "bg-warning-soft text-warning border border-warning/30 animate-pulse",
     icon: AlertTriangle,
   },
   "due-soon": {
@@ -103,9 +104,9 @@ export function BillCard({
         isIncome
           ? "border-success/35 bg-success-soft/10"
           : status === "overdue"
-            ? "border-danger/45"
+            ? "border-warning/45"
             : isPaid
-              ? "border-success/35 bg-success-soft/10"
+              ? "border-danger/35 bg-danger-soft/10"
               : "border-border hover:border-primary/30",
       )}
     >
@@ -221,7 +222,7 @@ export function BillCard({
             href={normalizePaymentUrl(bill.paymentUrl)!}
             target="_blank"
             rel="noopener noreferrer"
-            className="border-primary/25 bg-primary-soft/70 text-primary hover:bg-primary hover:text-primary-foreground mt-3 inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition-colors"
+            className="border-cat-1/30 bg-cat-1-soft text-cat-1 hover:bg-cat-1 hover:text-primary-foreground mt-3 inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition-colors"
           >
             <ExternalLink className="h-3.5 w-3.5 shrink-0" />
             Abrir link de pago
@@ -234,7 +235,11 @@ export function BillCard({
           variant={isPaid ? "secondary" : "primary"}
           size="md"
           onClick={onTogglePaid}
-          className="w-full"
+          className={cn(
+            "w-full",
+            isPaid &&
+              "bg-muted text-muted-foreground border-border/70 hover:bg-muted opacity-60 shadow-none hover:opacity-85",
+          )}
         >
           <CheckCircle2 className="h-4 w-4" />
           {isIncome
@@ -255,7 +260,7 @@ export function BillCard({
  * Nombre de Servicio | Monto | Vencimiento | Estado | Link | Acciones (alineadas a la derecha)
  */
 export const BILL_LIST_GRID_COLS =
-  "lg:grid-cols-[minmax(175px,250px)_minmax(102px,120px)_minmax(118px,144px)_minmax(118px,162px)_minmax(104px,124px)_minmax(148px,1fr)] lg:gap-3";
+  "lg:grid-cols-[minmax(175px,245px)_minmax(112px,132px)_minmax(150px,178px)_minmax(118px,162px)_minmax(108px,128px)_minmax(148px,1fr)] lg:gap-4";
 
 /** Vista compacta en línea (lista de detalles) */
 export function BillRow({
@@ -292,11 +297,11 @@ export function BillRow({
         isIncome
           ? "border-l-success bg-success-soft/10"
           : status === "overdue"
-            ? "border-l-danger"
+            ? "border-l-warning"
             : status === "due-soon"
               ? "border-l-warning"
               : isPaid
-                ? "border-l-success bg-success-soft/10"
+                ? "border-l-danger bg-danger-soft/10"
                 : "border-l-transparent",
       )}
     >
@@ -337,7 +342,7 @@ export function BillRow({
       {/* Monto (verde con + para ingresos) */}
       <div
         className={cn(
-          "text-sm font-extrabold whitespace-nowrap tabular-nums sm:text-base lg:pr-2 lg:text-right",
+          "text-sm font-extrabold whitespace-nowrap tabular-nums sm:text-base lg:pr-5 lg:text-right",
           isIncome ? "text-success" : "text-foreground",
         )}
       >
@@ -383,10 +388,10 @@ export function BillRow({
             target="_blank"
             rel="noopener noreferrer"
             title={bill.paymentUrl}
-            className="border-primary/25 bg-primary-soft/70 text-primary hover:bg-primary hover:text-primary-foreground inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap transition-colors"
+            className="border-cat-1/30 bg-cat-1-soft text-cat-1 hover:bg-cat-1 hover:text-primary-foreground inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap transition-colors"
           >
             <ExternalLink className="h-3 w-3 shrink-0" />
-            Ir a pagar
+            Link de Pago
           </a>
         ) : (
           <span className="text-muted-foreground/50 text-xs">—</span>
@@ -399,7 +404,11 @@ export function BillRow({
           variant={isPaid ? "secondary" : "primary"}
           size="sm"
           onClick={onTogglePaid}
-          className="min-h-8 px-3 text-xs"
+          className={cn(
+            "min-h-8 px-3 text-xs",
+            isPaid &&
+              "bg-muted text-muted-foreground border-border/70 hover:bg-muted opacity-60 shadow-none hover:opacity-85",
+          )}
         >
           <CheckCircle2 className="h-3.5 w-3.5" />
           {isIncome

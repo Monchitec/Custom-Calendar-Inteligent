@@ -12,9 +12,11 @@ import {
   List,
   PieChart,
   Plus,
+  Search,
   TrendingDown,
   TrendingUp,
   Wallet,
+  X,
 } from "lucide-react";
 import { NotificationPopover } from "@/components/shared/layout/NotificationPopover";
 import { useCalendarData } from "@/components/shared/providers/CalendarDataProvider";
@@ -45,6 +47,9 @@ const DONUT_EXPENSE_SLOTS = [
   { stroke: "var(--cat-5)", dotClass: "bg-cat-5" },
   { stroke: "var(--accent)", dotClass: "bg-accent" },
   { stroke: "var(--cat-6)", dotClass: "bg-cat-6" },
+  { stroke: "var(--cat-7)", dotClass: "bg-cat-7" },
+  { stroke: "var(--cat-bills)", dotClass: "bg-cat-bills" },
+  { stroke: "var(--secondary)", dotClass: "bg-secondary" },
 ] as const;
 
 function doesBillApplyToMonth(
@@ -79,6 +84,7 @@ export function BillsDashboard() {
 
   const [monthOffset, setMonthOffset] = useState(0);
   const [filter, setFilter] = useState<BillFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<BillViewMode>("list");
   const [chartScope, setChartScope] = useState<ChartScope>("month");
   const [hoveredSliceKey, setHoveredSliceKey] = useState<string | null>(null);
@@ -130,38 +136,41 @@ export function BillsDashboard() {
   }, [bills, viewYear, viewMonth, viewMonthKey, clock.todayKey]);
 
   const filteredBills = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
     return enrichedBills.filter((entry) => {
-      if (filter === "incomes") return entry.isIncome;
-      if (filter === "paid") return !entry.isIncome && entry.status === "paid";
-      if (filter === "pending")
-        return !entry.isIncome && entry.status !== "paid";
-      return true;
+      if (filter === "incomes" && !entry.isIncome) return false;
+      if (filter === "paid" && (entry.isIncome || entry.status !== "paid")) {
+        return false;
+      }
+      if (filter === "pending" && (entry.isIncome || entry.status === "paid")) {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        entry.bill.name.toLowerCase().includes(q) ||
+        (entry.bill.provider?.toLowerCase().includes(q) ?? false) ||
+        (entry.bill.notes?.toLowerCase().includes(q) ?? false)
+      );
     });
-  }, [enrichedBills, filter]);
+  }, [enrichedBills, filter, searchQuery]);
 
   const totals = useMemo(() => {
     let totalIncome = 0;
-    let receivedIncome = 0;
     let totalExpense = 0;
     let paidExpense = 0;
     let pendingExpense = 0;
     let expenseCount = 0;
-    let paidExpenseCount = 0;
     let pendingExpenseCount = 0;
     let overdueStrictCount = 0;
 
     for (const item of enrichedBills) {
       if (item.isIncome) {
         totalIncome += item.bill.amount;
-        if (item.status === "paid") {
-          receivedIncome += item.bill.amount;
-        }
       } else {
         expenseCount += 1;
         totalExpense += item.bill.amount;
         if (item.status === "paid") {
           paidExpense += item.bill.amount;
-          paidExpenseCount += 1;
         } else {
           pendingExpense += item.bill.amount;
           pendingExpenseCount += 1;
@@ -174,24 +183,25 @@ export function BillsDashboard() {
 
     const paidPct =
       totalExpense > 0 ? Math.round((paidExpense / totalExpense) * 100) : 0;
+    const egressPct =
+      totalIncome > 0
+        ? Math.min(100, Math.round((paidExpense / totalIncome) * 100))
+        : paidPct;
     const realBalance = totalIncome - paidExpense;
-    const projectedBalance = totalIncome - totalExpense;
     const committedPct =
       totalIncome > 0 ? Math.round((totalExpense / totalIncome) * 100) : 0;
 
     return {
       totalIncome,
-      receivedIncome,
       totalExpense,
       paidExpense,
       pendingExpense,
       expenseCount,
-      paidExpenseCount,
       pendingExpenseCount,
       overdueStrictCount,
       paidPct,
+      egressPct,
       realBalance,
-      projectedBalance,
       committedPct,
     };
   }, [enrichedBills]);
@@ -217,11 +227,7 @@ export function BillsDashboard() {
       isFree?: boolean;
     }> = [];
 
-    const maxIndividual = 4;
-    const topExpenses = expenses.slice(0, maxIndividual);
-    const otherExpenses = expenses.slice(maxIndividual);
-
-    topExpenses.forEach((entry, idx) => {
+    expenses.forEach((entry, idx) => {
       const slot = DONUT_EXPENSE_SLOTS[idx % DONUT_EXPENSE_SLOTS.length];
       rawSlices.push({
         key: entry.bill.id,
@@ -232,19 +238,6 @@ export function BillsDashboard() {
         dotClass: slot.dotClass,
       });
     });
-
-    if (otherExpenses.length > 0) {
-      const otherSum = otherExpenses.reduce((acc, e) => acc + e.bill.amount, 0);
-      const slot = DONUT_EXPENSE_SLOTS[4];
-      rawSlices.push({
-        key: "__others__",
-        label: `Otros (${otherExpenses.length})`,
-        amount: otherSum,
-        pct: Math.round((otherSum / baseTotal) * 100),
-        stroke: slot.stroke,
-        dotClass: slot.dotClass,
-      });
-    }
 
     if (totals.totalIncome > totals.totalExpense) {
       const freeAmt = totals.totalIncome - totals.totalExpense;
@@ -286,6 +279,7 @@ export function BillsDashboard() {
       const d = addMonths(clock.now, targetOffset);
       const y = d.getFullYear();
       const m = d.getMonth();
+      const mKey = toMonthKey(d);
 
       let income = 0;
       let expense = 0;
@@ -295,7 +289,16 @@ export function BillsDashboard() {
         if (bill.kind === "income") {
           income += bill.amount;
         } else {
-          expense += bill.amount;
+          const dueDate = clampDayOfMonth(y, m, bill.dueDay);
+          const occKey =
+            bill.frequency === "monthly" ||
+            bill.frequency === "quarterly" ||
+            bill.frequency === "yearly"
+              ? mKey
+              : getBillOccurrenceKey(bill, dueDate);
+          if (bill.paidOccurrences.includes(occKey)) {
+            expense += bill.amount;
+          }
         }
       }
 
@@ -394,10 +397,6 @@ export function BillsDashboard() {
           <h1 className="text-foreground text-2xl font-extrabold tracking-tight sm:text-3xl">
             Finanzas y Pagos del Hogar
           </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Control mensual de ingresos, gastos recurrentes y balance
-            sincronizados con tu calendario
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -509,168 +508,92 @@ export function BillsDashboard() {
               </div>
             </div>
 
-            {/* Balance real = Ingresos − Pagado (se actualiza conforme vas pagando) */}
-            <div className="mt-3.5 flex items-end justify-between gap-3">
-              <div>
-                <span className="text-muted-foreground text-[11px] font-semibold">
-                  {totals.totalIncome > 0
-                    ? totals.pendingExpenseCount === 0
-                      ? "Balance final del mes"
-                      : "Balance actual (Ingresos − Pagado)"
-                    : "Total gastos del mes"}
-                </span>
-                <p
-                  className={cn(
-                    "text-3xl leading-tight font-extrabold tabular-nums",
-                    totals.totalIncome > 0
-                      ? totals.realBalance >= 0
-                        ? "text-success"
-                        : "text-danger"
-                      : "text-foreground",
-                  )}
-                >
-                  {totals.totalIncome > 0
-                    ? `${totals.realBalance > 0 ? "+" : ""}${formatCurrency(totals.realBalance)}`
-                    : formatCurrency(totals.totalExpense)}
-                </p>
-                {totals.totalIncome > 0 && totals.pendingExpense > 0 && (
-                  <p className="text-muted-foreground mt-0.5 text-[11px] tabular-nums">
-                    Al pagar todo quedarían{" "}
-                    <strong
-                      className={cn(
-                        "font-bold",
-                        totals.projectedBalance >= 0
-                          ? "text-foreground"
-                          : "text-danger",
-                      )}
-                    >
-                      {totals.projectedBalance > 0 ? "+" : ""}
-                      {formatCurrency(totals.projectedBalance)}
-                    </strong>
-                  </p>
+            {/* Saldo real = Ingreso − Egreso (pagado) */}
+            <div className="mt-4">
+              <span className="text-muted-foreground text-xs font-semibold sm:text-sm">
+                {totals.totalIncome > 0
+                  ? "Saldo actual (Ingreso − Egreso)"
+                  : "Egresos del mes"}
+              </span>
+              <p
+                className={cn(
+                  "mt-0.5 text-3xl leading-tight font-extrabold tabular-nums sm:text-4xl",
+                  totals.totalIncome > 0
+                    ? totals.realBalance >= 0
+                      ? "text-success"
+                      : "text-danger"
+                    : "text-foreground",
                 )}
-              </div>
-
-              <div className="text-right">
-                <span className="text-foreground text-sm font-extrabold tabular-nums">
-                  {totals.paidPct}% pagado
-                </span>
-                <p className="text-muted-foreground text-xs tabular-nums">
-                  {totals.paidExpenseCount} de {totals.expenseCount} gastos
-                </p>
-              </div>
+              >
+                {totals.totalIncome > 0
+                  ? `${totals.realBalance > 0 ? "+" : ""}${formatCurrency(totals.realBalance)}`
+                  : formatCurrency(totals.paidExpense)}
+              </p>
             </div>
 
-            {/* Barra de avance de pagos (neutra cuando falta pagar, verde al avanzar) */}
+            {/* Barra visual de Egresos sobre fondo neutro */}
             <div
-              className="border-border/70 bg-muted mt-3 h-2.5 w-full overflow-hidden rounded-full border"
+              className="border-border/70 bg-muted mt-3.5 h-2.5 w-full overflow-hidden rounded-full border"
               role="progressbar"
-              aria-valuenow={totals.paidPct}
+              aria-valuenow={totals.egressPct}
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-label="Porcentaje de gastos pagados del mes"
+              aria-label="Proporción de egresos pagados"
             >
-              {totals.paidPct > 0 && (
+              {totals.egressPct > 0 && (
                 <div
-                  className="bg-success h-full rounded-full transition-all duration-300"
-                  style={{ width: `${totals.paidPct}%` }}
+                  className="bg-primary h-full rounded-full transition-all duration-300"
+                  style={{ width: `${totals.egressPct}%` }}
                 />
               )}
             </div>
           </div>
 
-          {/* Dos bloques separados y claros: (1) Ingresos & Gasto total | (2) Pagado & Falta pagar */}
-          <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            {/* Bloque A: Presupuesto (Ingresos vs Gasto total) */}
-            <div className="border-border/80 bg-surface/65 divide-border/70 grid grid-cols-2 divide-x rounded-2xl border py-2.5">
-              <button
-                type="button"
-                onClick={() =>
-                  totals.totalIncome > 0
-                    ? setFilter(filter === "incomes" ? "all" : "incomes")
-                    : openNewModal("income")
-                }
-                className="hover:bg-card/60 cursor-pointer rounded-l-xl px-3 py-0.5 text-left transition-colors"
-              >
-                <span className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-bold">
-                  <span className="bg-success h-2 w-2 shrink-0 rounded-full" />
-                  Ingresos
-                </span>
-                <p className="text-success mt-1 truncate text-sm font-extrabold tabular-nums">
-                  {formatCurrency(totals.totalIncome)}
-                </p>
-              </button>
+          {/* 2 bloques limpios y amplios: Ingresos | Egresos (pagados) */}
+          <div className="border-border/80 bg-surface/65 divide-border mt-5 grid grid-cols-2 divide-x rounded-2xl border py-3.5">
+            <button
+              type="button"
+              onClick={() =>
+                totals.totalIncome > 0
+                  ? setFilter(filter === "incomes" ? "all" : "incomes")
+                  : openNewModal("income")
+              }
+              className="hover:bg-card/60 cursor-pointer rounded-l-xl px-4 py-0.5 text-left transition-colors"
+            >
+              <span className="text-muted-foreground flex items-center gap-2 text-xs font-bold sm:text-sm">
+                <span className="bg-success h-2.5 w-2.5 shrink-0 rounded-full" />
+                Ingresos
+              </span>
+              <p className="text-success mt-1.5 truncate text-lg font-extrabold tabular-nums sm:text-xl">
+                {formatCurrency(totals.totalIncome)}
+              </p>
+            </button>
 
-              <button
-                type="button"
-                onClick={() => setFilter("all")}
-                className="hover:bg-card/60 cursor-pointer rounded-r-xl px-3 py-0.5 text-left transition-colors"
-              >
-                <span className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-bold">
-                  <span className="bg-foreground/50 h-2 w-2 shrink-0 rounded-full" />
-                  Gasto total
+            <button
+              type="button"
+              onClick={() => setFilter(filter === "paid" ? "all" : "paid")}
+              className="hover:bg-card/60 cursor-pointer rounded-r-xl px-4 py-0.5 text-left transition-colors"
+            >
+              <span className="text-muted-foreground flex items-center gap-2 text-xs font-bold sm:text-sm">
+                <span className="bg-primary h-2.5 w-2.5 shrink-0 rounded-full" />
+                Egresos
+                <span className="text-muted-foreground/75 text-[11px] font-semibold">
+                  (pagados)
                 </span>
-                <p className="text-foreground mt-1 truncate text-sm font-extrabold tabular-nums">
-                  {formatCurrency(totals.totalExpense)}
-                </p>
-              </button>
-            </div>
-
-            {/* Bloque B: Avance de pagos (Pagado vs Falta pagar) */}
-            <div className="border-border/80 bg-surface/65 divide-border/70 grid grid-cols-2 divide-x rounded-2xl border py-2.5">
-              <button
-                type="button"
-                onClick={() => setFilter(filter === "paid" ? "all" : "paid")}
-                className="hover:bg-card/60 cursor-pointer rounded-l-xl px-3 py-0.5 text-left transition-colors"
-              >
-                <span className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-bold">
-                  <span className="bg-primary h-2 w-2 shrink-0 rounded-full" />
-                  Pagado
-                </span>
-                <p className="text-foreground mt-1 truncate text-sm font-extrabold tabular-nums">
-                  {formatCurrency(totals.paidExpense)}
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setFilter(filter === "pending" ? "all" : "pending")
-                }
-                className="hover:bg-card/60 cursor-pointer rounded-r-xl px-3 py-0.5 text-left transition-colors"
-              >
-                <span className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-bold">
-                  <span
-                    className={cn(
-                      "h-2 w-2 shrink-0 rounded-full",
-                      totals.overdueStrictCount > 0
-                        ? "bg-danger"
-                        : "bg-muted-foreground/50",
-                    )}
-                  />
-                  Falta pagar
-                </span>
-                <p
-                  className={cn(
-                    "mt-1 truncate text-sm font-extrabold tabular-nums",
-                    totals.overdueStrictCount > 0
-                      ? "text-danger"
-                      : "text-foreground",
-                  )}
-                >
-                  {formatCurrency(totals.pendingExpense)}
-                </p>
-              </button>
-            </div>
+              </span>
+              <p className="text-primary mt-1.5 truncate text-lg font-extrabold tabular-nums sm:text-xl">
+                {formatCurrency(totals.paidExpense)}
+              </p>
+            </button>
           </div>
         </section>
 
         {/* Caja 2: Distribución del mes (Dona por defecto) / Comparativo anual (Ingresos vs Gastos) */}
         <section
           aria-label="Distribución de gastos y comparativo anual"
-          className="border-border bg-card flex flex-col justify-between rounded-3xl border p-5 shadow-2xs xl:col-span-7"
+          className="border-border bg-card flex flex-col rounded-3xl border p-5 shadow-2xs xl:col-span-7"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="border-border/75 flex flex-wrap items-center justify-between gap-2 border-b pb-3">
             <div className="flex items-center gap-2">
               <span className="bg-secondary-soft text-secondary flex h-8 w-8 items-center justify-center rounded-xl">
                 {chartScope === "month" ? (
@@ -681,8 +604,8 @@ export function BillsDashboard() {
               </span>
               <h2 className="text-muted-foreground text-xs font-extrabold tracking-wide uppercase">
                 {chartScope === "month"
-                  ? "Distribución del mes"
-                  : "Ingresos vs. Gastos"}
+                  ? "Egreso Proyectado del Mes"
+                  : "Ingresos Vs Egresos"}
               </h2>
             </div>
 
@@ -695,7 +618,7 @@ export function BillsDashboard() {
                   </span>
                   <span className="text-primary inline-flex items-center gap-1.5 font-bold">
                     <span className="bg-primary h-1 w-4 rounded-full" />
-                    Gastos
+                    Egresos
                   </span>
                 </div>
               )}
@@ -744,7 +667,7 @@ export function BillsDashboard() {
                 </p>
               </div>
             ) : (
-              <div className="mt-4 flex flex-col items-center gap-5 sm:flex-row sm:items-center">
+              <div className="flex flex-1 flex-col items-center gap-5 pt-4 sm:flex-row sm:items-center">
                 {/* Dona SVG interactiva */}
                 <div className="relative flex h-36 w-36 shrink-0 items-center justify-center">
                   <svg
@@ -786,88 +709,84 @@ export function BillsDashboard() {
                     })}
                   </svg>
 
-                  {/* Centro dinámico de la Dona */}
-                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
+                  {/* Centro de la Dona: monto de egreso proyectado sin descripción */}
+                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-2 text-center">
                     {activeDonutSlice ? (
                       <>
-                        <span className="text-foreground text-base leading-none font-extrabold tabular-nums">
-                          {activeDonutSlice.pct}%
+                        <span className="text-foreground text-sm leading-none font-extrabold tabular-nums">
+                          {formatCurrency(activeDonutSlice.amount, "PEN", true)}
                         </span>
                         <span className="text-muted-foreground mt-1 max-w-22 truncate text-[10px] font-bold">
                           {activeDonutSlice.label}
                         </span>
                       </>
-                    ) : totals.totalIncome > 0 ? (
-                      <>
-                        <span
-                          className={cn(
-                            "text-xl leading-none font-extrabold tabular-nums",
-                            totals.committedPct > 100
-                              ? "text-danger"
-                              : "text-foreground",
-                          )}
-                        >
-                          {totals.committedPct}%
-                        </span>
-                        <span className="text-muted-foreground mt-1 text-[10px] font-semibold">
-                          comprometido
-                        </span>
-                      </>
                     ) : (
-                      <>
-                        <span className="text-foreground text-sm leading-none font-extrabold tabular-nums">
-                          {formatCurrency(totals.totalExpense, "PEN", true)}
-                        </span>
-                        <span className="text-muted-foreground mt-1 text-[10px] font-semibold">
-                          en gastos
-                        </span>
-                      </>
+                      <span className="text-foreground text-base leading-none font-extrabold tabular-nums">
+                        {formatCurrency(totals.totalExpense, "PEN", true)}
+                      </span>
                     )}
                   </div>
                 </div>
 
-                {/* Desglose limpio al costado derecho */}
-                <div className="w-full min-w-0 flex-1 space-y-2">
-                  {donutData.slices.map((s) => (
+                {/* Desglose completo en columnas compactas con líneas divisoras */}
+                <div className="sm:border-border/70 flex w-full min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-start sm:gap-4 sm:border-l sm:pl-4">
+                  {(donutData.slices.length > 4
+                    ? [
+                        donutData.slices.slice(
+                          0,
+                          Math.ceil(donutData.slices.length / 2),
+                        ),
+                        donutData.slices.slice(
+                          Math.ceil(donutData.slices.length / 2),
+                        ),
+                      ]
+                    : [donutData.slices]
+                  ).map((colSlices, colIdx) => (
                     <div
-                      key={s.key}
-                      onMouseEnter={() => setHoveredSliceKey(s.key)}
-                      onMouseLeave={() => setHoveredSliceKey(null)}
+                      key={colIdx}
                       className={cn(
-                        "flex items-center justify-between gap-2 rounded-xl px-2 py-1 text-xs transition-colors",
-                        hoveredSliceKey === s.key && "bg-surface/90",
+                        "flex min-w-0 flex-1 flex-col gap-1",
+                        colIdx > 0 &&
+                          "border-border/70 border-t pt-2 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-4",
                       )}
                     >
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span
+                      {colSlices.map((s) => (
+                        <div
+                          key={s.key}
+                          onMouseEnter={() => setHoveredSliceKey(s.key)}
+                          onMouseLeave={() => setHoveredSliceKey(null)}
                           className={cn(
-                            "h-2.5 w-2.5 shrink-0 rounded-full",
-                            s.dotClass,
-                          )}
-                        />
-                        <span
-                          className={cn(
-                            "truncate font-bold",
-                            s.isFree ? "text-success" : "text-foreground",
+                            "flex w-full max-w-52 items-center justify-between gap-3 rounded-xl px-2 py-1 text-xs transition-colors",
+                            hoveredSliceKey === s.key && "bg-surface/90",
                           )}
                         >
-                          {s.label}
-                        </span>
-                      </div>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span
+                              className={cn(
+                                "h-2.5 w-2.5 shrink-0 rounded-full",
+                                s.dotClass,
+                              )}
+                            />
+                            <span
+                              className={cn(
+                                "truncate font-bold",
+                                s.isFree ? "text-success" : "text-foreground",
+                              )}
+                            >
+                              {s.label}
+                            </span>
+                          </div>
 
-                      <div className="flex shrink-0 items-baseline gap-2 tabular-nums">
-                        <span
-                          className={cn(
-                            "font-extrabold",
-                            s.isFree ? "text-success" : "text-foreground",
-                          )}
-                        >
-                          {formatCurrency(s.amount, "PEN", true)}
-                        </span>
-                        <span className="text-muted-foreground w-8 text-right text-[11px] font-semibold">
-                          {s.pct}%
-                        </span>
-                      </div>
+                          <span
+                            className={cn(
+                              "shrink-0 font-extrabold tabular-nums",
+                              s.isFree ? "text-success" : "text-foreground",
+                            )}
+                          >
+                            {formatCurrency(s.amount, "PEN", true)}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   ))}
                 </div>
@@ -880,7 +799,7 @@ export function BillsDashboard() {
                 viewBox={`0 0 ${yearlyChart.width} ${yearlyChart.height}`}
                 className="h-36 w-full overflow-visible"
                 role="img"
-                aria-label="Comparativo mensual de ingresos frente a gastos"
+                aria-label="Comparativo mensual de ingresos frente a egresos"
               >
                 <defs>
                   <linearGradient
@@ -992,7 +911,7 @@ export function BillsDashboard() {
                       onClick={() => setMonthOffset(pt.offset)}
                       className="cursor-pointer"
                     >
-                      <title>{`${pt.fullLabel}: Ingresos ${formatCurrency(pt.income)} · Gastos ${formatCurrency(pt.expense)}`}</title>
+                      <title>{`${pt.fullLabel}: Ingresos ${formatCurrency(pt.income)} · Egresos ${formatCurrency(pt.expense)}`}</title>
 
                       {topVal > 0 && (
                         <text
@@ -1069,30 +988,17 @@ export function BillsDashboard() {
             </div>
           )}
 
-          <div className="text-muted-foreground mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] tabular-nums">
-            <span>
-              {chartScope === "month" ? (
-                <>
-                  Gastos totales:{" "}
-                  <strong className="text-foreground font-bold">
-                    {formatCurrency(totals.totalExpense)}
-                  </strong>
-                </>
-              ) : (
-                <>
-                  Gasto promedio mensual:{" "}
-                  <strong className="text-foreground font-bold">
-                    {formatCurrency(yearlyChart.avgExpense)}
-                  </strong>
-                </>
-              )}
-            </span>
-            <span>
-              {chartScope === "month"
-                ? `¿En qué se va tu dinero en ${formatMonthYear(viewDate)}?`
-                : "Toca un mes para ver su detalle"}
-            </span>
-          </div>
+          {chartScope === "year" && (
+            <div className="text-muted-foreground mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] tabular-nums">
+              <span>
+                Egreso promedio mensual:{" "}
+                <strong className="text-foreground font-bold">
+                  {formatCurrency(yearlyChart.avgExpense)}
+                </strong>
+              </span>
+              <span>Toca un mes para ver su detalle</span>
+            </div>
+          )}
         </section>
       </div>
 
@@ -1125,39 +1031,66 @@ export function BillsDashboard() {
           ))}
         </div>
 
-        <div
-          role="group"
-          aria-label="Cambiar vista de movimientos"
-          className="border-border bg-card inline-flex items-center gap-1 rounded-2xl border p-1 shadow-2xs"
-        >
-          <button
-            type="button"
-            onClick={() => setViewMode("list")}
-            aria-pressed={viewMode === "list"}
-            className={cn(
-              "inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition-all",
-              viewMode === "list"
-                ? "bg-primary text-primary-foreground shadow-2xs"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+          <div className="relative flex-1 sm:flex-initial">
+            <Search
+              className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2"
+              aria-hidden="true"
+            />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar pago o ingreso..."
+              aria-label="Buscar pagos o ingresos por nombre"
+              className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/25 h-9 w-full rounded-2xl border pr-8 pl-8 text-xs font-medium shadow-2xs transition-all focus:ring-2 focus:outline-none sm:w-56"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                aria-label="Limpiar búsqueda"
+                className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2 cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
             )}
+          </div>
+
+          <div
+            role="group"
+            aria-label="Cambiar vista de movimientos"
+            className="border-border bg-card inline-flex items-center gap-1 rounded-2xl border p-1 shadow-2xs"
           >
-            <List className="h-3.5 w-3.5" />
-            <span>Lista</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode("cards")}
-            aria-pressed={viewMode === "cards"}
-            className={cn(
-              "inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition-all",
-              viewMode === "cards"
-                ? "bg-primary text-primary-foreground shadow-2xs"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            <LayoutGrid className="h-3.5 w-3.5" />
-            <span>Tarjetas</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              aria-pressed={viewMode === "list"}
+              className={cn(
+                "inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition-all",
+                viewMode === "list"
+                  ? "bg-primary text-primary-foreground shadow-2xs"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <List className="h-3.5 w-3.5" />
+              <span>Lista</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("cards")}
+              aria-pressed={viewMode === "cards"}
+              className={cn(
+                "inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition-all",
+                viewMode === "cards"
+                  ? "bg-primary text-primary-foreground shadow-2xs"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              <span>Tarjetas</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1197,8 +1130,8 @@ export function BillsDashboard() {
             )}
           >
             <span>Nombre de Servicio</span>
-            <span className="pr-2 text-right">Monto</span>
-            <span>Fecha</span>
+            <span className="pr-5 text-right">Monto</span>
+            <span>Fecha de Vencimiento</span>
             <span>Estado</span>
             <span>Link</span>
             <span className="text-right">Acciones</span>
@@ -1235,7 +1168,7 @@ export function BillsDashboard() {
             </span>
             <span
               className={cn(
-                "font-extrabold whitespace-nowrap tabular-nums lg:pr-2 lg:text-right",
+                "font-extrabold whitespace-nowrap tabular-nums lg:pr-5 lg:text-right",
                 filter === "incomes"
                   ? "text-success"
                   : filteredSummary.inc > 0 && filteredSummary.exp > 0
