@@ -18,6 +18,12 @@ export interface RecurringBill {
   currency: string;
   dueDay: number; // 1..31
   startDate: string; // YYYY-MM-DD
+  /** Fecha límite opcional (YYYY-MM-DD) cuando se cambia el monto "desde este mes en adelante" */
+  endDate?: string;
+  /** Montos excepcionales por mes (YYYY-MM -> monto) sin alterar meses anteriores */
+  amountOverrides?: Record<string, number>;
+  /** Meses (YYYY-MM) en los que este pago/ingreso recurrente se omite */
+  excludedMonths?: string[];
   frequency: BillFrequency;
   autoPay: boolean;
   reminderDaysBefore: number;

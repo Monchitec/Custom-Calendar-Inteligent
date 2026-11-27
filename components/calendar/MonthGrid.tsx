@@ -296,6 +296,15 @@ export function MonthGrid({
                       >
                         {item.title}
                       </span>
+                      {/cumplea|birthday/i.test(item.title) &&
+                        visual !== "🎂" && (
+                          <span
+                            className="shrink-0 text-[11px]"
+                            aria-hidden="true"
+                          >
+                            🎂
+                          </span>
+                        )}
                     </button>
                   );
                 })}

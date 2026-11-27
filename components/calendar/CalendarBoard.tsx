@@ -60,9 +60,15 @@ function matchesCalendarFilter(
   if (filter.mode === "solo-bills") return item.source === "bill";
   if (filter.mode === "solo-tasks") return item.source === "task";
   if (filter.mode === "solo-profile") {
-    return item.source !== "bill" && item.profileId === filter.profileId;
+    return item.profileId === filter.profileId;
   }
-  if (item.source === "bill") return filter.includeBills;
+  if (item.source === "bill") {
+    return (
+      filter.includeBills &&
+      (filter.profileIds.length === 0 ||
+        filter.profileIds.includes(item.profileId))
+    );
+  }
   if (item.source === "task") {
     return filter.includeTasks || filter.profileIds.includes(item.profileId);
   }
@@ -239,10 +245,12 @@ export function CalendarBoard() {
 
   const unfilteredRangeItems = useMemo(
     () =>
-      allProjectedItems.filter(
-        (i) => i.date >= rangeStartKey && i.date <= rangeEndKey,
-      ),
-    [allProjectedItems, rangeStartKey, rangeEndKey],
+      view === "day"
+        ? allProjectedItems.filter((i) => i.date === anchorKey)
+        : allProjectedItems.filter(
+            (i) => i.date >= rangeStartKey && i.date <= rangeEndKey,
+          ),
+    [allProjectedItems, view, anchorKey, rangeStartKey, rangeEndKey],
   );
 
   const filteredItems = useMemo(() => {

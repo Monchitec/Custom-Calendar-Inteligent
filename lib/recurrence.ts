@@ -217,6 +217,24 @@ export function projectBillOccurrences(
   rangeStartKey: string,
   rangeEndKey: string,
 ): Array<{ dueDate: string; occurrenceKey: string; isPaid: boolean }> {
+  let raw = projectBillOccurrencesRaw(bill, rangeStartKey, rangeEndKey);
+  if (bill.endDate) {
+    raw = raw.filter((occ) => occ.dueDate <= bill.endDate!);
+  }
+  if (bill.excludedMonths && bill.excludedMonths.length > 0) {
+    const excluded = new Set(bill.excludedMonths);
+    raw = raw.filter(
+      (occ) => !excluded.has(getMonthKeyFromDateKey(occ.dueDate)),
+    );
+  }
+  return raw;
+}
+
+function projectBillOccurrencesRaw(
+  bill: RecurringBill,
+  rangeStartKey: string,
+  rangeEndKey: string,
+): Array<{ dueDate: string; occurrenceKey: string; isPaid: boolean }> {
   const occurrences: Array<{
     dueDate: string;
     occurrenceKey: string;
@@ -224,6 +242,7 @@ export function projectBillOccurrences(
   }> = [];
 
   if (bill.startDate > rangeEndKey) return occurrences;
+  if (bill.endDate && rangeStartKey > bill.endDate) return occurrences;
 
   const start = parseDateKey(bill.startDate);
   const rangeStart = parseDateKey(rangeStartKey);
@@ -376,6 +395,7 @@ export function buildProjectedCalendarItems(params: {
       if (billProfile && !billProfile.visible) continue;
       const occs = projectBillOccurrences(bill, rangeStartKey, rangeEndKey);
       for (const occ of occs) {
+        const occMonthKey = getMonthKeyFromDateKey(occ.dueDate);
         items.push({
           id: `bill:${bill.id}:${occ.dueDate}`,
           source: "bill",
@@ -387,7 +407,7 @@ export function buildProjectedCalendarItems(params: {
           profileId: billProfile?.id ?? "__bills__",
           profileLabel: billProfile?.name ?? "Pagos",
           visualIcon: bill.visualIcon,
-          amount: bill.amount,
+          amount: bill.amountOverrides?.[occMonthKey] ?? bill.amount,
           currency: billProfile?.currency ?? bill.currency,
           billPaid: occ.isPaid,
           notes: bill.provider ? `Proveedor: ${bill.provider}` : bill.notes,

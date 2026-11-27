@@ -40,6 +40,8 @@ export interface Profile {
   currency?: ProfileCurrency;
   /** Correo electrónico para futuras notificaciones */
   email?: string;
+  /** Activa el envío de recordatorios por correo para este perfil */
+  emailNotifications?: boolean;
   /** Teléfono / WhatsApp para futuras notificaciones */
   phone?: string;
   /** Imagen personalizada (URL de Storage o data URL) subida por el usuario para identificar el perfil */

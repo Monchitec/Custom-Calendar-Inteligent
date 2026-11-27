@@ -27,6 +27,7 @@ function toProfileRow(p: Profile, index = 0) {
     is_primary: Boolean(p.isPrimary),
     currency: p.currency === "USD" ? "USD" : "PEN",
     email: p.email ?? null,
+    email_notifications: Boolean(p.emailNotifications),
     phone: p.phone ?? null,
     custom_image: p.customImage ?? null,
     sort_order: index,
@@ -43,6 +44,7 @@ function fromProfileRow(r: Record<string, unknown>): Profile {
     isPrimary: Boolean(r.is_primary),
     currency: r.currency === "USD" ? "USD" : "PEN",
     email: r.email ? String(r.email) : undefined,
+    emailNotifications: Boolean(r.email_notifications),
     phone: r.phone ? String(r.phone) : undefined,
     customImage: r.custom_image ? String(r.custom_image) : undefined,
   };
@@ -159,6 +161,9 @@ function toBillRow(b: RecurringBill) {
     currency: b.currency || "PEN",
     due_day: b.dueDay,
     start_date: b.startDate,
+    end_date: b.endDate ?? null,
+    amount_overrides: b.amountOverrides ?? {},
+    excluded_months: b.excludedMonths ?? [],
     frequency: b.frequency,
     auto_pay: b.autoPay,
     reminder_days_before: b.reminderDaysBefore,
@@ -180,6 +185,14 @@ function fromBillRow(r: Record<string, unknown>): RecurringBill {
     currency: r.currency ? String(r.currency) : "PEN",
     dueDay: Number(r.due_day) || 1,
     startDate: String(r.start_date),
+    endDate: r.end_date ? String(r.end_date) : undefined,
+    amountOverrides:
+      r.amount_overrides && typeof r.amount_overrides === "object"
+        ? (r.amount_overrides as Record<string, number>)
+        : undefined,
+    excludedMonths: Array.isArray(r.excluded_months)
+      ? (r.excluded_months as string[])
+      : undefined,
     frequency: (r.frequency as RecurringBill["frequency"]) ?? "monthly",
     autoPay: Boolean(r.auto_pay),
     reminderDaysBefore: Number(r.reminder_days_before) || 0,
@@ -369,6 +382,9 @@ export async function dbUpsertProfile(profile: Profile, index = 0) {
   const fallbackRow: Record<string, unknown> = { ...row };
   if (error.message.includes("is_primary")) delete fallbackRow.is_primary;
   if (error.message.includes("currency")) delete fallbackRow.currency;
+  if (error.message.includes("email_notifications")) {
+    delete fallbackRow.email_notifications;
+  }
   if (error.message.includes("email")) delete fallbackRow.email;
   if (error.message.includes("phone")) delete fallbackRow.phone;
   if (Object.keys(fallbackRow).length < Object.keys(row).length) {
@@ -457,6 +473,15 @@ export async function dbUpsertBill(bill: RecurringBill) {
   }
   if (error.message.includes("profile_id")) {
     delete fallbackRow.profile_id;
+  }
+  if (error.message.includes("end_date")) {
+    delete fallbackRow.end_date;
+  }
+  if (error.message.includes("amount_overrides")) {
+    delete fallbackRow.amount_overrides;
+  }
+  if (error.message.includes("excluded_months")) {
+    delete fallbackRow.excluded_months;
   }
   if (Object.keys(fallbackRow).length < Object.keys(row).length) {
     const retry = await client.from("bills").upsert(fallbackRow);

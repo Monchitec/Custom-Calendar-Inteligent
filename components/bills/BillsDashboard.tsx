@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertCircle,
   ArrowDownLeft,
   ArrowUpDown,
   ArrowUpRight,
@@ -21,21 +22,29 @@ import {
 import { NotificationPopover } from "@/components/shared/layout/NotificationPopover";
 import { useCalendarData } from "@/components/shared/providers/CalendarDataProvider";
 import { Button } from "@/components/shared/ui/Button";
+import { Modal } from "@/components/shared/ui/Modal";
 import { ProfileIcon } from "@/components/shared/ui/ProfileIcon";
 import { useClock } from "@/hooks/useClock";
 import { cn } from "@/lib/cn";
 import {
   addMonths,
   clampDayOfMonth,
+  daysInMonth,
   formatCurrency,
   formatMonthYear,
+  pad2,
   parseDateKey,
   toMonthKey,
 } from "@/lib/dates";
 import { getBillOccurrenceKey, getBillStatus } from "@/lib/recurrence";
 import { readStorage, writeStorage } from "@/lib/storage";
 import { getProfileSlotClasses } from "@/lib/themes";
-import type { BillKind, BillStatus, RecurringBill } from "@/types/bills";
+import type {
+  BillFrequency,
+  BillKind,
+  BillStatus,
+  RecurringBill,
+} from "@/types/bills";
 import {
   BillCard,
   BillStatementRow,
@@ -51,6 +60,27 @@ type StatementSortField = "dueDate" | "amount" | "name";
 
 const STATEMENT_PAGE_SIZE = 8;
 const STATEMENT_COLS_STORAGE_KEY = "calendario_statement_cols_v1";
+
+const FREQ_LOWER_LABELS: Record<BillFrequency, string> = {
+  monthly: "mensual",
+  biweekly: "quincenal",
+  weekly: "semanal",
+  quarterly: "trimestral",
+  yearly: "anual",
+  once: "única",
+};
+
+function getPrevMonthEndKey(monthKey: string): string {
+  const [yStr, mStr] = monthKey.split("-");
+  let y = Number(yStr);
+  let m = Number(mStr) - 1;
+  if (m <= 0) {
+    m = 12;
+    y -= 1;
+  }
+  const lastDay = daysInMonth(y, m - 1);
+  return `${y}-${pad2(m)}-${pad2(lastDay)}`;
+}
 
 function normalizeStatementColumns(raw: unknown): StatementColumnKey[] {
   if (!Array.isArray(raw)) return DEFAULT_STATEMENT_COLUMNS;
@@ -69,6 +99,13 @@ function doesBillApplyToMonth(
   year: number,
   monthIndex0: number,
 ): boolean {
+  const targetMonthKey = `${year}-${String(monthIndex0 + 1).padStart(2, "0")}`;
+  if (bill.excludedMonths?.includes(targetMonthKey)) {
+    return false;
+  }
+  if (bill.endDate && targetMonthKey > bill.endDate.slice(0, 7)) {
+    return false;
+  }
   if (!bill.startDate) return true;
   const start = parseDateKey(bill.startDate);
   const startYear = start.getFullYear();
@@ -91,7 +128,8 @@ function doesBillApplyToMonth(
 
 export function BillsDashboard() {
   const clock = useClock();
-  const { profiles, bills, toggleBillPaid, deleteBill } = useCalendarData();
+  const { profiles, bills, toggleBillPaid, updateBill, deleteBill } =
+    useCalendarData();
 
   const primaryProfile = useMemo(
     () => profiles.find((p) => p.isPrimary) ?? profiles[0],
@@ -140,6 +178,7 @@ export function BillsDashboard() {
     null,
   );
   const [modalOpen, setModalOpen] = useState(false);
+  const [deletingBill, setDeletingBill] = useState<RecurringBill | null>(null);
 
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -196,6 +235,43 @@ export function BillsDashboard() {
     setModalOpen(true);
   };
 
+  const handleRequestDeleteBill = (bill: RecurringBill) => {
+    if (bill.frequency === "once") {
+      deleteBill(bill.id);
+      return;
+    }
+    setDeletingBill(bill);
+  };
+
+  const handleDeleteOnlyThisMonth = () => {
+    if (!deletingBill) return;
+    const prevExcluded = deletingBill.excludedMonths ?? [];
+    if (!prevExcluded.includes(viewMonthKey)) {
+      updateBill(deletingBill.id, {
+        excludedMonths: [...prevExcluded, viewMonthKey],
+      });
+    }
+    setDeletingBill(null);
+  };
+
+  const handleDeleteFromThisMonthForward = () => {
+    if (!deletingBill) return;
+    if (viewMonthKey <= deletingBill.startDate.slice(0, 7)) {
+      deleteBill(deletingBill.id);
+    } else {
+      updateBill(deletingBill.id, {
+        endDate: getPrevMonthEndKey(viewMonthKey),
+      });
+    }
+    setDeletingBill(null);
+  };
+
+  const handleDeleteAllMonths = () => {
+    if (!deletingBill) return;
+    deleteBill(deletingBill.id);
+    setDeletingBill(null);
+  };
+
   const profileFilteredBills = useMemo(() => {
     if (activeProfileId === "all") return bills;
     return bills.filter((bill) => {
@@ -222,8 +298,14 @@ export function BillsDashboard() {
           clock.todayKey,
           bill.reminderDaysBefore,
         );
+        const effectiveAmount =
+          bill.amountOverrides?.[viewMonthKey] ?? bill.amount;
         return {
-          bill,
+          bill:
+            effectiveAmount !== bill.amount
+              ? { ...bill, amount: effectiveAmount }
+              : bill,
+          originalBill: bill,
           isIncome: bill.kind === "income",
           dueDate,
           occKey,
@@ -981,7 +1063,7 @@ export function BillsDashboard() {
                   </thead>
                   <tbody className="divide-border divide-y">
                     {paginatedStatementBills.map(
-                      ({ bill, dueDate, occKey, status }) => (
+                      ({ bill, originalBill, dueDate, occKey, status }) => (
                         <BillStatementRow
                           key={bill.id}
                           bill={bill}
@@ -989,8 +1071,8 @@ export function BillsDashboard() {
                           status={status}
                           columns={columnOrder}
                           onTogglePaid={() => toggleBillPaid(bill.id, occKey)}
-                          onEdit={() => handleEditBill(bill)}
-                          onDelete={() => deleteBill(bill.id)}
+                          onEdit={() => handleEditBill(originalBill)}
+                          onDelete={() => handleRequestDeleteBill(originalBill)}
                         />
                       ),
                     )}
@@ -1061,17 +1143,19 @@ export function BillsDashboard() {
         </section>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {searchedBills.map(({ bill, dueDate, occKey, status }) => (
-            <BillCard
-              key={bill.id}
-              bill={bill}
-              dueDate={dueDate}
-              status={status}
-              onTogglePaid={() => toggleBillPaid(bill.id, occKey)}
-              onEdit={() => handleEditBill(bill)}
-              onDelete={() => deleteBill(bill.id)}
-            />
-          ))}
+          {searchedBills.map(
+            ({ bill, originalBill, dueDate, occKey, status }) => (
+              <BillCard
+                key={bill.id}
+                bill={bill}
+                dueDate={dueDate}
+                status={status}
+                onTogglePaid={() => toggleBillPaid(bill.id, occKey)}
+                onEdit={() => handleEditBill(originalBill)}
+                onDelete={() => handleRequestDeleteBill(originalBill)}
+              />
+            ),
+          )}
         </div>
       )}
 
@@ -1082,11 +1166,74 @@ export function BillsDashboard() {
         defaultProfileId={
           activeProfileId !== "all" ? activeProfileId : primaryProfile?.id
         }
+        contextMonthKey={viewMonthKey}
         onClose={() => {
           setModalOpen(false);
           setEditingBill(null);
         }}
       />
+
+      {/* Modal de alerta para omitir/eliminar un pago o ingreso recurrente */}
+      <Modal
+        open={Boolean(deletingBill)}
+        onClose={() => setDeletingBill(null)}
+        title="¿Cómo deseas eliminar este registro?"
+        maxWidthClass="max-w-md"
+        footer={
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setDeletingBill(null)}
+            >
+              Cancelar
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-2.5">
+          <div className="bg-warning-soft border-warning/35 flex items-start gap-2.5 rounded-2xl border p-3.5">
+            <AlertCircle className="text-warning mt-0.5 h-4 w-4 shrink-0" />
+            <p className="text-foreground text-xs leading-relaxed font-medium">
+              Este registro se repite de forma{" "}
+              <strong className="font-extrabold">
+                {FREQ_LOWER_LABELS[deletingBill?.frequency ?? "monthly"]}
+              </strong>
+              . ¿Estás seguro de cómo deseas eliminarlo u omitirlo?
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleDeleteOnlyThisMonth}
+            className="border-border bg-card hover:border-primary/40 hover:bg-card-hover flex w-full cursor-pointer items-center rounded-2xl border px-4 py-3 text-left transition-all"
+          >
+            <span className="text-foreground text-sm font-extrabold">
+              Solo este mes ({formatMonthYear(viewDate)})
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDeleteFromThisMonthForward}
+            className="border-border bg-card hover:border-primary/40 hover:bg-card-hover flex w-full cursor-pointer items-center rounded-2xl border px-4 py-3 text-left transition-all"
+          >
+            <span className="text-foreground text-sm font-extrabold">
+              Desde este mes en adelante
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDeleteAllMonths}
+            className="border-danger/35 bg-danger-soft/45 hover:bg-danger-soft flex w-full cursor-pointer items-center rounded-2xl border px-4 py-3 text-left transition-all"
+          >
+            <span className="text-danger text-sm font-extrabold">
+              Todos los meses
+            </span>
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

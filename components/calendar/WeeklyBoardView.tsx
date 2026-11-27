@@ -311,13 +311,13 @@ export function WeeklyBoardView({
         );
       })}
 
-      {/* Octava celda: Próxima semana */}
-      <section className="bg-surface/40 flex min-h-56 flex-col p-4">
+      {/* Octava celda: Próxima semana (estilo vista previa sutilmente atenuado) */}
+      <section className="bg-muted/55 flex min-h-56 flex-col p-4">
         <div className="mb-3 text-center">
-          <h3 className="text-foreground text-base font-extrabold sm:text-lg">
+          <h3 className="text-muted-foreground text-base font-extrabold sm:text-lg">
             Próxima semana
           </h3>
-          <p className="text-muted-foreground mt-0.5 text-xs font-medium tabular-nums">
+          <p className="text-muted-foreground/80 mt-0.5 text-xs font-medium tabular-nums">
             {formatShortDate(toDateKey(nextWeekStart))} —{" "}
             {formatShortDate(toDateKey(nextWeekEnd))}
           </p>
@@ -332,7 +332,7 @@ export function WeeklyBoardView({
                 type="button"
                 onClick={(e) => onSelectItem(item, e.currentTarget)}
                 className={cn(
-                  "flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl border-l-4 px-3 py-2 text-left text-xs transition-all hover:brightness-97",
+                  "flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl border-l-4 px-3 py-2 text-left text-xs opacity-70 grayscale-[35%] transition-all hover:opacity-100 hover:grayscale-0",
                   slot.block,
                 )}
               >

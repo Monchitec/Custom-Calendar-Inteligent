@@ -3,7 +3,9 @@
 
 alter table public.profiles
   add column if not exists is_primary boolean not null default false,
+  add column if not exists currency text not null default 'PEN',
   add column if not exists email text,
+  add column if not exists email_notifications boolean not null default false,
   add column if not exists phone text;
 
 -- Si ningún perfil está marcado como principal, marcar el primero según sort_order
@@ -17,7 +19,10 @@ and not exists (
 );
 
 alter table public.bills
-  add column if not exists profile_id text references public.profiles(id) on delete cascade;
+  add column if not exists profile_id text references public.profiles(id) on delete cascade,
+  add column if not exists end_date text,
+  add column if not exists amount_overrides jsonb not null default '{}'::jsonb,
+  add column if not exists excluded_months jsonb not null default '[]'::jsonb;
 
 -- Asignar los pagos/ingresos antiguos sin perfil al perfil principal
 update public.bills

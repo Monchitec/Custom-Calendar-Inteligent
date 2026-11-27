@@ -443,6 +443,24 @@ export function CalendarDataProvider({
         ) {
           new window.Notification(`Recordatorio: ${event.title}`, { body });
         }
+
+        const eventProfile = state.profiles.find(
+          (p) => p.id === event.profileId,
+        );
+        if (eventProfile?.email && eventProfile.emailNotifications) {
+          void fetch("/api/notifications/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              to: eventProfile.email,
+              subject: `Recordatorio: ${event.title}`,
+              eventTitle: event.title,
+              body,
+              profileName: eventProfile.name,
+              location: event.location,
+            }),
+          }).catch(() => {});
+        }
       }
 
       for (const task of state.tasks) {
@@ -507,7 +525,14 @@ export function CalendarDataProvider({
 
     const interval = window.setInterval(checkAlarmsAndReminders, 15_000);
     return () => window.clearInterval(interval);
-  }, [hydrated, state.alarms, state.events, state.tasks, state.preferences]);
+  }, [
+    hydrated,
+    state.alarms,
+    state.events,
+    state.tasks,
+    state.profiles,
+    state.preferences,
+  ]);
 
   const openQuickAdd = useCallback(
     (tab: QuickAddTab = "event", defaultDate?: string, defaultTime?: string) => {

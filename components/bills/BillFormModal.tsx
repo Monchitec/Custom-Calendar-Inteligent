@@ -1,15 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { AlertCircle, ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { useCalendarData } from "@/components/shared/providers/CalendarDataProvider";
 import { Button } from "@/components/shared/ui/Button";
 import { Modal } from "@/components/shared/ui/Modal";
 import { Switch } from "@/components/shared/ui/Switch";
 import { VisualIconPicker } from "@/components/shared/ui/VisualIconPicker";
 import { cn } from "@/lib/cn";
-import { toDateKey } from "@/lib/dates";
+import {
+  daysInMonth,
+  formatMonthYear,
+  pad2,
+  parseDateKey,
+  toDateKey,
+} from "@/lib/dates";
 import type { BillFrequency, BillKind, RecurringBill } from "@/types/bills";
+
+const FREQ_LOWER_LABELS: Record<BillFrequency, string> = {
+  monthly: "mensual",
+  biweekly: "quincenal",
+  weekly: "semanal",
+  quarterly: "trimestral",
+  yearly: "anual",
+  once: "única",
+};
 
 const INPUT_CLASS =
   "w-full rounded-xl bg-background border border-border px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25";
@@ -21,6 +36,7 @@ interface BillFormModalProps {
   editingBill: RecurringBill | null;
   defaultKind?: BillKind;
   defaultProfileId?: string;
+  contextMonthKey?: string;
   onClose: () => void;
 }
 
@@ -29,34 +45,55 @@ export function BillFormModal({
   editingBill,
   defaultKind = "expense",
   defaultProfileId,
+  contextMonthKey,
   onClose,
 }: BillFormModalProps) {
   if (!open) return null;
   return (
     <BillFormModalInner
-      key={`${editingBill?.id ?? "new"}:${editingBill?.kind ?? defaultKind}:${editingBill?.profileId ?? defaultProfileId ?? ""}`}
+      key={`${editingBill?.id ?? "new"}:${editingBill?.kind ?? defaultKind}:${editingBill?.profileId ?? defaultProfileId ?? ""}:${contextMonthKey ?? ""}`}
       editingBill={editingBill}
       defaultKind={defaultKind}
       defaultProfileId={defaultProfileId}
+      contextMonthKey={contextMonthKey}
       onClose={onClose}
     />
   );
+}
+
+function getPrevMonthEndKey(monthKey: string): string {
+  const [yStr, mStr] = monthKey.split("-");
+  let y = Number(yStr);
+  let m = Number(mStr) - 1; // 1..12 -> 0..11
+  if (m <= 0) {
+    m = 12;
+    y -= 1;
+  }
+  const lastDay = daysInMonth(y, m - 1);
+  return `${y}-${pad2(m)}-${pad2(lastDay)}`;
 }
 
 function BillFormModalInner({
   editingBill,
   defaultKind,
   defaultProfileId,
+  contextMonthKey,
   onClose,
 }: {
   editingBill: RecurringBill | null;
   defaultKind: BillKind;
   defaultProfileId?: string;
+  contextMonthKey?: string;
   onClose: () => void;
 }) {
   const { profiles, addBill, updateBill, preferences } = useCalendarData();
   const primaryProfileId =
     profiles.find((p) => p.isPrimary)?.id ?? profiles[0]?.id ?? "";
+
+  const effectiveInitialAmount =
+    editingBill && contextMonthKey
+      ? (editingBill.amountOverrides?.[contextMonthKey] ?? editingBill.amount)
+      : editingBill?.amount;
 
   const [kind, setKind] = useState<BillKind>(editingBill?.kind ?? defaultKind);
   const [profileId, setProfileId] = useState<string>(
@@ -65,8 +102,9 @@ function BillFormModalInner({
   const [name, setName] = useState(editingBill?.name ?? "");
   const [provider, setProvider] = useState(editingBill?.provider ?? "");
   const [amount, setAmount] = useState(
-    editingBill ? String(editingBill.amount) : "",
+    effectiveInitialAmount !== undefined ? String(effectiveInitialAmount) : "",
   );
+  const [scopePromptOpen, setScopePromptOpen] = useState(false);
   const [dueDay, setDueDay] = useState(
     editingBill ? String(editingBill.dueDay) : "15",
   );
@@ -90,15 +128,9 @@ function BillFormModalInner({
 
   const isIncome = kind === "income";
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const buildPayload = () => {
     const num = Number(amount);
-    if (!name.trim() || Number.isNaN(num) || num <= 0) {
-      setError("Ingresa un nombre y un monto mayor a 0.");
-      return;
-    }
-
-    const payload = {
+    return {
       kind,
       profileId: profileId || primaryProfileId || undefined,
       name: name.trim(),
@@ -116,7 +148,49 @@ function BillFormModalInner({
       paymentUrl: paymentUrl.trim() || undefined,
       notes: notes.trim() || undefined,
     };
+  };
 
+  const hasChanges = editingBill
+    ? (editingBill.kind ?? "expense") !== kind ||
+      (editingBill.profileId ?? primaryProfileId) !==
+        (profileId || primaryProfileId) ||
+      editingBill.name !== name.trim() ||
+      (editingBill.provider ?? "") !== provider.trim() ||
+      (effectiveInitialAmount ?? editingBill.amount) !== Number(amount) ||
+      editingBill.dueDay !== Math.min(31, Math.max(1, Number(dueDay) || 1)) ||
+      editingBill.frequency !== frequency ||
+      (isIncome ? false : editingBill.autoPay) !==
+        (isIncome ? false : autoPay) ||
+      (isIncome ? 0 : editingBill.reminderDaysBefore) !==
+        (isIncome ? 0 : Math.max(0, Number(reminderDaysBefore) || 0)) ||
+      (editingBill.paymentUrl ?? "") !== paymentUrl.trim() ||
+      (editingBill.notes ?? "") !== notes.trim() ||
+      (editingBill.visualIcon ?? "") !== visualIcon
+    : true;
+
+  const contextMonthLabel = contextMonthKey
+    ? formatMonthYear(parseDateKey(`${contextMonthKey}-01`))
+    : "";
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const num = Number(amount);
+    if (!name.trim() || Number.isNaN(num) || num <= 0) {
+      setError("Ingresa un nombre y un monto mayor a 0.");
+      return;
+    }
+
+    if (editingBill && !hasChanges) {
+      onClose();
+      return;
+    }
+
+    if (editingBill && editingBill.frequency !== "once" && contextMonthKey) {
+      setScopePromptOpen(true);
+      return;
+    }
+
+    const payload = buildPayload();
     if (editingBill) {
       updateBill(editingBill.id, payload);
     } else {
@@ -125,8 +199,53 @@ function BillFormModalInner({
     onClose();
   };
 
+  const applyOnlyThisMonth = () => {
+    if (!editingBill || !contextMonthKey) return;
+    const payload = buildPayload();
+    updateBill(editingBill.id, {
+      ...payload,
+      // Mantiene el monto base original para los demás meses y guarda solo la excepción de este mes
+      amount: editingBill.amount,
+      amountOverrides: {
+        ...(editingBill.amountOverrides ?? {}),
+        [contextMonthKey]: payload.amount,
+      },
+    });
+    setScopePromptOpen(false);
+    onClose();
+  };
+
+  const applyFromThisMonthForward = () => {
+    if (!editingBill || !contextMonthKey) return;
+    const payload = buildPayload();
+    if (contextMonthKey <= editingBill.startDate.slice(0, 7)) {
+      updateBill(editingBill.id, payload);
+    } else {
+      const prevEnd = getPrevMonthEndKey(contextMonthKey);
+      updateBill(editingBill.id, { endDate: prevEnd });
+      addBill({
+        ...payload,
+        startDate: `${contextMonthKey}-01`,
+      });
+    }
+    setScopePromptOpen(false);
+    onClose();
+  };
+
+  const applyAllMonths = () => {
+    if (!editingBill) return;
+    const payload = buildPayload();
+    updateBill(editingBill.id, {
+      ...payload,
+      amountOverrides: undefined,
+    });
+    setScopePromptOpen(false);
+    onClose();
+  };
+
   return (
-    <Modal
+    <>
+      <Modal
       open
       onClose={onClose}
       title={
@@ -395,5 +514,68 @@ function BillFormModalInner({
         )}
       </form>
     </Modal>
+
+      {/* Modal aparte de alerta para elegir alcance del cambio */}
+      <Modal
+        open={Boolean(scopePromptOpen && editingBill)}
+        onClose={() => setScopePromptOpen(false)}
+        title="¿Cómo deseas aplicar este cambio?"
+        maxWidthClass="max-w-md"
+        footer={
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setScopePromptOpen(false)}
+            >
+              Cancelar
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-2.5">
+          <div className="bg-warning-soft border-warning/35 flex items-start gap-2.5 rounded-2xl border p-3.5">
+            <AlertCircle className="text-warning mt-0.5 h-4 w-4 shrink-0" />
+            <p className="text-foreground text-xs leading-relaxed font-medium">
+              Este registro se repite de forma{" "}
+              <strong className="font-extrabold">
+                {FREQ_LOWER_LABELS[editingBill?.frequency ?? frequency]}
+              </strong>
+              . ¿Estás seguro de cómo deseas aplicar el cambio?
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={applyOnlyThisMonth}
+            className="border-border bg-card hover:border-primary/40 hover:bg-card-hover flex w-full cursor-pointer items-center rounded-2xl border px-4 py-3 text-left transition-all"
+          >
+            <span className="text-foreground text-sm font-extrabold">
+              Solo este mes ({contextMonthLabel})
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={applyFromThisMonthForward}
+            className="border-border bg-card hover:border-primary/40 hover:bg-card-hover flex w-full cursor-pointer items-center rounded-2xl border px-4 py-3 text-left transition-all"
+          >
+            <span className="text-foreground text-sm font-extrabold">
+              Desde este mes en adelante
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={applyAllMonths}
+            className="border-border bg-card hover:border-primary/40 hover:bg-card-hover flex w-full cursor-pointer items-center rounded-2xl border px-4 py-3 text-left transition-all"
+          >
+            <span className="text-foreground text-sm font-extrabold">
+              Todos los meses
+            </span>
+          </button>
+        </div>
+      </Modal>
+    </>
   );
 }

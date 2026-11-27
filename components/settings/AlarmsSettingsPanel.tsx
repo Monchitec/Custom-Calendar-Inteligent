@@ -4,20 +4,25 @@ import { useState } from "react";
 import {
   AlarmClock,
   Bell,
+  Mail,
   Play,
   Plus,
   RotateCcw,
+  Send,
   Trash2,
   Volume2,
   VolumeX,
 } from "lucide-react";
 import { useCalendarData } from "@/components/shared/providers/CalendarDataProvider";
 import { Button } from "@/components/shared/ui/Button";
+import { ProfileIcon } from "@/components/shared/ui/ProfileIcon";
 import { Switch } from "@/components/shared/ui/Switch";
 import { cn } from "@/lib/cn";
 import { formatTimeDisplay, getWeekdayTinyLabels } from "@/lib/dates";
 import { ALARM_SOUNDS, playAlarmSound } from "@/lib/sounds";
+import { getProfileSlotClasses } from "@/lib/themes";
 import type { AlarmSoundId } from "@/types/alarms";
+import type { Profile } from "@/types/calendar";
 
 const INPUT_CLASS =
   "w-full rounded-xl bg-background border border-border px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25";
@@ -34,6 +39,7 @@ export function AlarmsSettingsPanel() {
     deleteAlarm,
     triggerAlarmTest,
     updatePreferences,
+    updateProfile,
     resetDemoData,
   } = useCalendarData();
 
@@ -43,6 +49,12 @@ export function AlarmsSettingsPanel() {
   const [sound, setSound] = useState<AlarmSoundId>(preferences.defaultSound);
   const [snoozeMinutes, setSnoozeMinutes] = useState("5");
   const [notifStatus, setNotifStatus] = useState<string>("");
+  const [testingEmailId, setTestingEmailId] = useState<string | null>(null);
+  const [emailTestFeedback, setEmailTestFeedback] = useState<{
+    id: string;
+    ok: boolean;
+    message: string;
+  } | null>(null);
 
   const weekdayTiny = getWeekdayTinyLabels();
 
@@ -84,6 +96,48 @@ export function AlarmsSettingsPanel() {
     } else {
       updatePreferences({ browserNotificationsEnabled: false });
       setNotifStatus("Permiso denegado en el navegador.");
+    }
+  };
+
+  const handleSendTestEmail = async (profile: Profile) => {
+    if (!profile.email) return;
+    setTestingEmailId(profile.id);
+    setEmailTestFeedback(null);
+    try {
+      const res = await fetch("/api/notifications/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: profile.email,
+          subject: `Prueba de recordatorio · ${profile.name}`,
+          eventTitle: "Correo de prueba de Mi Calendario",
+          body: "Si ves este mensaje, los recordatorios por correo de tus eventos ya están funcionando correctamente.",
+          profileName: profile.name,
+          isTest: true,
+        }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setEmailTestFeedback({
+          id: profile.id,
+          ok: false,
+          message: data.error ?? "No se pudo enviar el correo.",
+        });
+      } else {
+        setEmailTestFeedback({
+          id: profile.id,
+          ok: true,
+          message: `Enviado a ${profile.email}`,
+        });
+      }
+    } catch {
+      setEmailTestFeedback({
+        id: profile.id,
+        ok: false,
+        message: "Error de red al intentar enviar el correo.",
+      });
+    } finally {
+      setTestingEmailId(null);
     }
   };
 
@@ -317,11 +371,11 @@ export function AlarmsSettingsPanel() {
           </div>
           <div>
             <h2 className="text-foreground text-base font-extrabold">
-              Sonidos y recordatorios por defecto
+              Notificaciones
             </h2>
             <p className="text-muted-foreground text-xs">
-              Define el volumen global, los tonos y con cuánta anticipación
-              quieres recibir avisos
+              Define sonidos, anticipación de recordatorios y envíos por correo
+              para cada perfil
             </p>
           </div>
         </div>
@@ -489,6 +543,107 @@ export function AlarmsSettingsPanel() {
                 Restaurar
               </Button>
             </div>
+          </div>
+        </div>
+
+        {/* Notificaciones por correo por perfil */}
+        <div className="border-border bg-surface/50 mt-4 rounded-2xl border p-4">
+          <div className="flex items-center gap-2.5">
+            <span className="bg-primary-soft text-primary flex h-8 w-8 shrink-0 items-center justify-center rounded-xl">
+              <Mail className="h-4 w-4" />
+            </span>
+            <div>
+              <h3 className="text-foreground text-sm font-extrabold">
+                Notificaciones por correo
+              </h3>
+              <p className="text-muted-foreground text-xs">
+                Activa el envío de recordatorios de eventos al correo de cada
+                perfil
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-3 divide-y divide-border">
+            {profiles.map((profile) => {
+              const slot = getProfileSlotClasses(profile.colorSlot);
+              const hasEmail = Boolean(profile.email?.trim());
+              const isTesting = testingEmailId === profile.id;
+              const feedback =
+                emailTestFeedback?.id === profile.id ? emailTestFeedback : null;
+
+              return (
+                <div
+                  key={profile.id}
+                  className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-1 last:pb-0"
+                >
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span
+                      className={cn(
+                        "flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full",
+                        slot.iconBg,
+                      )}
+                    >
+                      {profile.customImage ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={profile.customImage}
+                          alt={profile.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <ProfileIcon name={profile.icon} className="h-4 w-4" />
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-foreground truncate text-sm font-bold">
+                        {profile.name}
+                      </p>
+                      <p className="text-muted-foreground truncate text-xs">
+                        {hasEmail
+                          ? profile.email
+                          : "Agrega un correo en la pestaña Perfiles"}
+                      </p>
+                      {feedback && (
+                        <p
+                          className={cn(
+                            "mt-0.5 text-[11px] font-semibold",
+                            feedback.ok ? "text-success" : "text-danger",
+                          )}
+                        >
+                          {feedback.message}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {hasEmail && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={isTesting}
+                        onClick={() => void handleSendTestEmail(profile)}
+                        className="h-8 px-2.5 text-xs"
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                        <span>{isTesting ? "Enviando..." : "Probar"}</span>
+                      </Button>
+                    )}
+                    <Switch
+                      checked={hasEmail && Boolean(profile.emailNotifications)}
+                      disabled={!hasEmail}
+                      onChange={(checked) =>
+                        updateProfile(profile.id, {
+                          emailNotifications: checked,
+                        })
+                      }
+                      ariaLabel={`Enviar recordatorios por correo a ${profile.name}`}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>

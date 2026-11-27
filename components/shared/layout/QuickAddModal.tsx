@@ -72,6 +72,7 @@ function QuickAddModalInner({
   );
 
   // Event state
+  const [isBirthday, setIsBirthday] = useState(false);
   const [evtTitle, setEvtTitle] = useState("");
   const [evtDate, setEvtDate] = useState(todayKey);
   const [evtAllDay, setEvtAllDay] = useState(false);
@@ -312,14 +313,64 @@ function QuickAddModalInner({
       <form id="quick-add-form" onSubmit={handleSubmit} className="space-y-4">
         {tab === "event" && (
           <>
+            {/* Selector rápido de tipo: Evento normal vs Cumpleaños */}
+            <div
+              role="group"
+              aria-label="Tipo de evento"
+              className="border-border bg-surface grid grid-cols-2 gap-1 rounded-2xl border p-1"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setIsBirthday(false);
+                  setEvtAllDay(false);
+                  setEvtRecurrence("none");
+                }}
+                aria-pressed={!isBirthday}
+                className={cn(
+                  "inline-flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-bold transition-all",
+                  !isBirthday
+                    ? "bg-primary text-primary-foreground shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Evento / Cita
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsBirthday(true);
+                  setEvtAllDay(true);
+                  setEvtRecurrence("yearly");
+                  if (!evtIcon) setEvtIcon("🎂");
+                }}
+                aria-pressed={isBirthday}
+                className={cn(
+                  "inline-flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-bold transition-all",
+                  isBirthday
+                    ? "bg-accent text-accent-foreground shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <span aria-hidden="true">🎂</span>
+                <span>Cumpleaños</span>
+              </button>
+            </div>
+
             <div>
               <label htmlFor="qa-evt-title" className={LABEL_CLASS}>
-                Título del evento, actividad o cita
+                {isBirthday
+                  ? "¿De quién es el cumpleaños?"
+                  : "Título del evento, actividad o cita"}
               </label>
               <input
                 id="qa-evt-title"
                 type="text"
-                placeholder="Ej. Reunión en el colegio de Azucena, Cita médica..."
+                placeholder={
+                  isBirthday
+                    ? "Ej. Cumpleaños de Marielle, Cumpleaños de Mamá..."
+                    : "Ej. Reunión en el colegio de Azucena, Cita médica..."
+                }
                 value={evtTitle}
                 onChange={(e) => setEvtTitle(e.target.value)}
                 className={INPUT_CLASS}
@@ -363,23 +414,25 @@ function QuickAddModalInner({
               </div>
             </div>
 
-            <div className="border-border bg-surface/60 flex items-center justify-between rounded-2xl border px-4 py-3">
-              <div>
-                <p className="text-foreground text-sm font-semibold">
-                  Todo el día
-                </p>
-                <p className="text-muted-foreground text-xs">
-                  Desactívalo para definir hora de inicio y fin
-                </p>
+            {!isBirthday && (
+              <div className="border-border bg-surface/60 flex items-center justify-between rounded-2xl border px-4 py-3">
+                <div>
+                  <p className="text-foreground text-sm font-semibold">
+                    Todo el día
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    Desactívalo para definir hora de inicio y fin
+                  </p>
+                </div>
+                <Switch
+                  checked={evtAllDay}
+                  onChange={setEvtAllDay}
+                  ariaLabel="Evento de todo el día"
+                />
               </div>
-              <Switch
-                checked={evtAllDay}
-                onChange={setEvtAllDay}
-                ariaLabel="Evento de todo el día"
-              />
-            </div>
+            )}
 
-            {!evtAllDay && (
+            {!isBirthday && !evtAllDay && (
               <div className="border-border bg-surface/40 space-y-3 rounded-2xl border p-3.5">
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
@@ -440,27 +493,34 @@ function QuickAddModalInner({
               </div>
             )}
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label htmlFor="qa-evt-rec" className={LABEL_CLASS}>
-                  Repetición
-                </label>
-                <select
-                  id="qa-evt-rec"
-                  value={evtRecurrence}
-                  onChange={(e) => setEvtRecurrence(e.target.value)}
-                  className={INPUT_CLASS}
-                >
-                  <option value="none">No se repite</option>
-                  <option value="daily">Todos los días</option>
-                  <option value="weekdays">Lunes a viernes</option>
-                  <option value="weekly">Cada semana</option>
-                  <option value="biweekly">Cada 2 semanas</option>
-                  <option value="monthly">Cada mes</option>
-                  <option value="yearly">Cada año</option>
-                  <option value="custom">Personalizado (elegir días)</option>
-                </select>
-              </div>
+            <div
+              className={cn(
+                "grid grid-cols-1 gap-3",
+                !isBirthday && "sm:grid-cols-2",
+              )}
+            >
+              {!isBirthday && (
+                <div>
+                  <label htmlFor="qa-evt-rec" className={LABEL_CLASS}>
+                    Repetición
+                  </label>
+                  <select
+                    id="qa-evt-rec"
+                    value={evtRecurrence}
+                    onChange={(e) => setEvtRecurrence(e.target.value)}
+                    className={INPUT_CLASS}
+                  >
+                    <option value="none">No se repite</option>
+                    <option value="daily">Todos los días</option>
+                    <option value="weekdays">Lunes a viernes</option>
+                    <option value="weekly">Cada semana</option>
+                    <option value="biweekly">Cada 2 semanas</option>
+                    <option value="monthly">Cada mes</option>
+                    <option value="yearly">Cada año</option>
+                    <option value="custom">Personalizado (elegir días)</option>
+                  </select>
+                </div>
+              )}
               <div>
                 <label htmlFor="qa-evt-rem" className={LABEL_CLASS}>
                   Recordatorio
@@ -481,7 +541,7 @@ function QuickAddModalInner({
               </div>
             </div>
 
-            {evtRecurrence === "custom" && (
+            {!isBirthday && evtRecurrence === "custom" && (
               <div className="border-border bg-surface/50 rounded-2xl border p-3.5">
                 <span className={LABEL_CLASS}>
                   Repetir los días seleccionados
