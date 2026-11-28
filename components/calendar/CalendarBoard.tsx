@@ -529,6 +529,11 @@ export function CalendarBoard() {
             }}
             onQuickAddForDate={(key) => openQuickAdd("event", key)}
             onSelectItem={handleSelectItem}
+            onEditItem={(it) => {
+              setPopoverState(null);
+              setModalInitialEditing(true);
+              setActiveItem(it);
+            }}
           />
         )}
       </div>

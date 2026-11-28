@@ -5,7 +5,6 @@ import { AlertCircle, ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { useCalendarData } from "@/components/shared/providers/CalendarDataProvider";
 import { Button } from "@/components/shared/ui/Button";
 import { Modal } from "@/components/shared/ui/Modal";
-import { Switch } from "@/components/shared/ui/Switch";
 import { VisualIconPicker } from "@/components/shared/ui/VisualIconPicker";
 import { cn } from "@/lib/cn";
 import {
@@ -111,7 +110,7 @@ function BillFormModalInner({
   const [frequency, setFrequency] = useState<BillFrequency>(
     editingBill?.frequency ?? "monthly",
   );
-  const [autoPay, setAutoPay] = useState(editingBill?.autoPay ?? false);
+  const [autoPay] = useState(editingBill?.autoPay ?? false);
   const [reminderDaysBefore, setReminderDaysBefore] = useState(
     String(editingBill?.reminderDaysBefore ?? preferences.defaultBillLeadDays),
   );
@@ -406,7 +405,7 @@ function BillFormModalInner({
           </div>
           <div className="col-span-2 sm:col-span-1">
             <label htmlFor="bf-freq" className={LABEL_CLASS}>
-              Frecuencia
+              Frecuencia de pago
             </label>
             <select
               id="bf-freq"
@@ -427,36 +426,27 @@ function BillFormModalInner({
         </div>
 
         {!isIncome && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label htmlFor="bf-rem" className={LABEL_CLASS}>
-                Avisar días antes
-              </label>
-              <input
-                id="bf-rem"
-                type="number"
-                min="0"
-                max="15"
-                value={reminderDaysBefore}
-                onChange={(e) => setReminderDaysBefore(e.target.value)}
-                className={cn(INPUT_CLASS, "tabular-nums")}
-              />
-            </div>
-            <div className="border-border bg-surface/60 flex items-center justify-between rounded-2xl border px-4 py-2.5">
-              <div>
-                <p className="text-foreground text-sm font-semibold">
-                  Débito automático
-                </p>
-                <p className="text-muted-foreground text-xs">
-                  Auto-pago activo
-                </p>
-              </div>
-              <Switch
-                checked={autoPay}
-                onChange={setAutoPay}
-                ariaLabel="Débito automático"
-              />
-            </div>
+          <div>
+            <label
+              htmlFor="bf-rem"
+              className={cn(LABEL_CLASS, "inline-flex items-center gap-1.5")}
+            >
+              <span>Recordatorio</span>
+              <span aria-hidden="true">🔔</span>
+            </label>
+            <select
+              id="bf-rem"
+              value={reminderDaysBefore}
+              onChange={(e) => setReminderDaysBefore(e.target.value)}
+              className={INPUT_CLASS}
+            >
+              <option value="0">El mismo día</option>
+              <option value="1">1 día antes</option>
+              <option value="2">2 días antes</option>
+              <option value="3">3 días antes</option>
+              <option value="5">5 días antes</option>
+              <option value="7">7 días antes</option>
+            </select>
           </div>
         )}
 

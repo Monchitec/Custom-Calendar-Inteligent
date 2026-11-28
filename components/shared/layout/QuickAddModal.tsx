@@ -110,7 +110,7 @@ function QuickAddModalInner({
     String(Math.min(28, Number(todayKey.slice(8, 10)) || 15)),
   );
   const [billFrequency, setBillFrequency] = useState<BillFrequency>("monthly");
-  const [billAutoPay, setBillAutoPay] = useState(false);
+  const [billAutoPay] = useState(false);
   const [billReminderDays, setBillReminderDays] = useState(
     String(preferences.defaultBillLeadDays),
   );
@@ -415,81 +415,78 @@ function QuickAddModalInner({
             </div>
 
             {!isBirthday && (
-              <div className="border-border bg-surface/60 flex items-center justify-between rounded-2xl border px-4 py-3">
-                <div>
-                  <p className="text-foreground text-sm font-semibold">
+              <div className="border-border bg-surface/50 rounded-2xl border p-3.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-foreground text-sm font-semibold">
                     Todo el día
-                  </p>
-                  <p className="text-muted-foreground text-xs">
-                    Desactívalo para definir hora de inicio y fin
-                  </p>
-                </div>
-                <Switch
-                  checked={evtAllDay}
-                  onChange={setEvtAllDay}
-                  ariaLabel="Evento de todo el día"
-                />
-              </div>
-            )}
-
-            {!isBirthday && !evtAllDay && (
-              <div className="border-border bg-surface/40 space-y-3 rounded-2xl border p-3.5">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor="qa-evt-start" className={LABEL_CLASS}>
-                      Inicio
-                    </label>
-                    <TimePicker15
-                      id="qa-evt-start"
-                      value={evtStart}
-                      onChange={handleStartTimeChange}
-                      ariaLabel="Hora de inicio"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="qa-evt-end" className={LABEL_CLASS}>
-                      Fin
-                    </label>
-                    <TimePicker15
-                      id="qa-evt-end"
-                      value={evtEnd}
-                      minTime={evtStart}
-                      onChange={setEvtEnd}
-                      ariaLabel="Hora de fin"
-                    />
-                  </div>
-                </div>
-
-                {/* Accesos rápidos de duración */}
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-muted-foreground mr-1 text-[11px] font-semibold">
-                    Duración rápida:
                   </span>
-                  {[
-                    { label: "15 min", mins: 15 },
-                    { label: "30 min", mins: 30 },
-                    { label: "1 h", mins: 60 },
-                    { label: "1.5 h", mins: 90 },
-                    { label: "2 h", mins: 120 },
-                  ].map((preset) => {
-                    const active = currentDurationMins === preset.mins;
-                    return (
-                      <button
-                        key={preset.mins}
-                        type="button"
-                        onClick={() => applyQuickDuration(preset.mins)}
-                        className={cn(
-                          "cursor-pointer rounded-full border px-2.5 py-1 text-[11px] font-bold tabular-nums transition-all",
-                          active
-                            ? "border-primary/40 bg-primary-soft text-primary"
-                            : "border-border bg-card text-muted-foreground hover:bg-card-hover hover:text-foreground",
-                        )}
-                      >
-                        {preset.label}
-                      </button>
-                    );
-                  })}
+                  <Switch
+                    checked={evtAllDay}
+                    onChange={setEvtAllDay}
+                    ariaLabel="Evento de todo el día"
+                  />
                 </div>
+
+                {!evtAllDay && (
+                  <div className="border-border/70 mt-3 space-y-2.5 border-t pt-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label htmlFor="qa-evt-start" className={LABEL_CLASS}>
+                          Inicio
+                        </label>
+                        <TimePicker15
+                          id="qa-evt-start"
+                          value={evtStart}
+                          onChange={handleStartTimeChange}
+                          ariaLabel="Hora de inicio"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="qa-evt-end" className={LABEL_CLASS}>
+                          Fin
+                        </label>
+                        <TimePicker15
+                          id="qa-evt-end"
+                          value={evtEnd}
+                          minTime={evtStart}
+                          onChange={setEvtEnd}
+                          ariaLabel="Hora de fin"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Accesos rápidos de duración */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-muted-foreground mr-1 text-[11px] font-semibold">
+                        Duración:
+                      </span>
+                      {[
+                        { label: "15m", mins: 15 },
+                        { label: "30m", mins: 30 },
+                        { label: "1h", mins: 60 },
+                        { label: "1.5h", mins: 90 },
+                        { label: "2h", mins: 120 },
+                      ].map((preset) => {
+                        const active = currentDurationMins === preset.mins;
+                        return (
+                          <button
+                            key={preset.mins}
+                            type="button"
+                            onClick={() => applyQuickDuration(preset.mins)}
+                            className={cn(
+                              "cursor-pointer rounded-full border px-2.5 py-1 text-[11px] font-bold tabular-nums transition-all",
+                              active
+                                ? "border-primary/40 bg-primary-soft text-primary"
+                                : "border-border bg-card text-muted-foreground hover:bg-card-hover hover:text-foreground",
+                            )}
+                          >
+                            {preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -522,8 +519,12 @@ function QuickAddModalInner({
                 </div>
               )}
               <div>
-                <label htmlFor="qa-evt-rem" className={LABEL_CLASS}>
-                  Recordatorio
+                <label
+                  htmlFor="qa-evt-rem"
+                  className={cn(LABEL_CLASS, "inline-flex items-center gap-1.5")}
+                >
+                  <span>Recordatorio</span>
+                  <span aria-hidden="true">🔔</span>
                 </label>
                 <select
                   id="qa-evt-rem"
@@ -803,7 +804,7 @@ function QuickAddModalInner({
               </div>
               <div className="col-span-2 sm:col-span-1">
                 <label htmlFor="qa-bill-freq" className={LABEL_CLASS}>
-                  Frecuencia
+                  Frecuencia de pago
                 </label>
                 <select
                   id="qa-bill-freq"
@@ -823,34 +824,27 @@ function QuickAddModalInner({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label htmlFor="qa-bill-rem" className={LABEL_CLASS}>
-                  Avisar días antes
-                </label>
-                <input
-                  id="qa-bill-rem"
-                  type="number"
-                  min="0"
-                  max="15"
-                  value={billReminderDays}
-                  onChange={(e) => setBillReminderDays(e.target.value)}
-                  className={cn(INPUT_CLASS, "tabular-nums")}
-                />
-              </div>
-              <div className="border-border bg-surface/60 flex items-center justify-between rounded-2xl border px-4 py-2.5">
-                <div>
-                  <p className="text-foreground text-sm font-semibold">
-                    Débito automático
-                  </p>
-                  <p className="text-muted-foreground text-xs">Auto-pago</p>
-                </div>
-                <Switch
-                  checked={billAutoPay}
-                  onChange={setBillAutoPay}
-                  ariaLabel="Débito automático"
-                />
-              </div>
+            <div>
+              <label
+                htmlFor="qa-bill-rem"
+                className={cn(LABEL_CLASS, "inline-flex items-center gap-1.5")}
+              >
+                <span>Recordatorio</span>
+                <span aria-hidden="true">🔔</span>
+              </label>
+              <select
+                id="qa-bill-rem"
+                value={billReminderDays}
+                onChange={(e) => setBillReminderDays(e.target.value)}
+                className={INPUT_CLASS}
+              >
+                <option value="0">El mismo día</option>
+                <option value="1">1 día antes</option>
+                <option value="2">2 días antes</option>
+                <option value="3">3 días antes</option>
+                <option value="5">5 días antes</option>
+                <option value="7">7 días antes</option>
+              </select>
             </div>
 
             <div>

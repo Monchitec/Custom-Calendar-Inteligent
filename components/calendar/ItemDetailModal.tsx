@@ -136,6 +136,12 @@ function ItemDetailModalInner({
       : [parseDateKey(sourceEvent?.date ?? item.date).getDay()],
   );
   const [notes, setNotes] = useState(sourceEvent?.notes ?? "");
+  const [reminderMinutes, setReminderMinutes] = useState<string>(
+    sourceEvent?.reminderMinutes !== null &&
+      sourceEvent?.reminderMinutes !== undefined
+      ? String(sourceEvent.reminderMinutes)
+      : "none",
+  );
 
   const slot = getProfileSlotClasses(item.colorSlot);
 
@@ -150,6 +156,9 @@ function ItemDetailModalInner({
         : "none"
       : (recurrence as RecurrenceFrequency);
 
+  const resolveReminderMinutes = (): number | null =>
+    reminderMinutes === "none" ? null : Number(reminderMinutes);
+
   const applySaveAllSeries = () => {
     if (!sourceEvent || !title.trim()) return;
     updateEvent(sourceEvent.id, {
@@ -162,6 +171,7 @@ function ItemDetailModalInner({
       location: location.trim() || undefined,
       recurrence: resolveEditedRecurrence(),
       notes: notes.trim() || undefined,
+      reminderMinutes: resolveReminderMinutes(),
     });
     setScopePrompt(null);
     setEditing(false);
@@ -187,7 +197,7 @@ function ItemDetailModalInner({
       location: location.trim() || undefined,
       notes: notes.trim() || undefined,
       recurrence: "none",
-      reminderMinutes: sourceEvent.reminderMinutes,
+      reminderMinutes: resolveReminderMinutes(),
     });
     setScopePrompt(null);
     setEditing(false);
@@ -462,44 +472,46 @@ function ItemDetailModalInner({
             </div>
           </div>
 
-          <div className="border-border bg-surface/60 flex items-center justify-between rounded-2xl border px-4 py-3">
-            <span className="text-foreground text-sm font-semibold">
-              Todo el día
-            </span>
-            <Switch
-              checked={allDay}
-              onChange={setAllDay}
-              ariaLabel="Todo el día"
-            />
-          </div>
-
-          {!allDay && (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label htmlFor="edit-evt-start" className={LABEL_CLASS}>
-                  Inicio
-                </label>
-                <TimePicker15
-                  id="edit-evt-start"
-                  value={startTime}
-                  onChange={handleEditStartChange}
-                  ariaLabel="Hora de inicio"
-                />
-              </div>
-              <div>
-                <label htmlFor="edit-evt-end" className={LABEL_CLASS}>
-                  Fin
-                </label>
-                <TimePicker15
-                  id="edit-evt-end"
-                  value={endTime}
-                  minTime={startTime}
-                  onChange={setEndTime}
-                  ariaLabel="Hora de fin"
-                />
-              </div>
+          <div className="border-border bg-surface/50 rounded-2xl border p-3.5">
+            <div className="flex items-center justify-between">
+              <span className="text-foreground text-sm font-semibold">
+                Todo el día
+              </span>
+              <Switch
+                checked={allDay}
+                onChange={setAllDay}
+                ariaLabel="Todo el día"
+              />
             </div>
-          )}
+
+            {!allDay && (
+              <div className="border-border/70 mt-3 grid grid-cols-1 gap-3 border-t pt-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="edit-evt-start" className={LABEL_CLASS}>
+                    Inicio
+                  </label>
+                  <TimePicker15
+                    id="edit-evt-start"
+                    value={startTime}
+                    onChange={handleEditStartChange}
+                    ariaLabel="Hora de inicio"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="edit-evt-end" className={LABEL_CLASS}>
+                    Fin
+                  </label>
+                  <TimePicker15
+                    id="edit-evt-end"
+                    value={endTime}
+                    minTime={startTime}
+                    onChange={setEndTime}
+                    ariaLabel="Hora de fin"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
@@ -567,6 +579,30 @@ function ItemDetailModalInner({
               </div>
             </div>
           )}
+
+          <div>
+            <label
+              htmlFor="edit-evt-reminder"
+              className={cn(LABEL_CLASS, "inline-flex items-center gap-1.5")}
+            >
+              <span>Notificación / Recordatorio</span>
+              <span aria-hidden="true">🔔</span>
+            </label>
+            <select
+              id="edit-evt-reminder"
+              value={reminderMinutes}
+              onChange={(e) => setReminderMinutes(e.target.value)}
+              className={INPUT_CLASS}
+            >
+              <option value="none">Sin recordatorio</option>
+              <option value="0">A la hora del evento</option>
+              <option value="5">5 minutos antes</option>
+              <option value="15">15 minutos antes</option>
+              <option value="30">30 minutos antes</option>
+              <option value="60">1 hora antes</option>
+              <option value="1440">1 día antes</option>
+            </select>
+          </div>
 
           <div>
             <label htmlFor="edit-evt-notes" className={LABEL_CLASS}>

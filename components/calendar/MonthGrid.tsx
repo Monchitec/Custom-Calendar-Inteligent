@@ -313,6 +313,17 @@ export function MonthGrid({
           );
         })}
       </div>
+
+      {/* Botón flotante fijo en la esquina inferior derecha de la pantalla */}
+      <button
+        type="button"
+        onClick={() => onQuickAddForDate(todayKey)}
+        aria-label="Nuevo evento"
+        title="Agregar nuevo evento"
+        className="bg-primary hover:bg-primary-hover text-primary-foreground focus-visible:ring-primary fixed right-6 bottom-6 z-40 flex h-14 w-14 cursor-pointer items-center justify-center rounded-full shadow-xl transition-all hover:scale-105 active:scale-95 focus-visible:ring-2 focus-visible:outline-none"
+      >
+        <Plus className="h-7 w-7" />
+      </button>
     </div>
   );
 }

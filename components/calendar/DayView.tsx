@@ -38,6 +38,7 @@ interface DayViewProps {
   onSelectDate: (dateKey: string) => void;
   onQuickAddForDate: (dateKey: string) => void;
   onSelectItem: (item: ProjectedCalendarItem) => void;
+  onEditItem?: (item: ProjectedCalendarItem) => void;
 }
 
 export function DayView({
@@ -49,6 +50,7 @@ export function DayView({
   onSelectDate,
   onQuickAddForDate,
   onSelectItem,
+  onEditItem,
 }: DayViewProps) {
   const { profiles, deleteEvent, deleteBill, deleteTask } = useCalendarData();
   const profileMap = useMemo(
@@ -135,7 +137,7 @@ export function DayView({
             </p>
           </div>
           <Button
-            variant="soft"
+            variant="primary"
             size="sm"
             onClick={() => onQuickAddForDate(dateKey)}
           >
@@ -290,7 +292,7 @@ export function DayView({
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => onSelectItem(item)}
+                        onClick={() => (onEditItem ?? onSelectItem)(item)}
                         aria-label={`Editar ${item.title}`}
                         title="Editar"
                         className="text-muted-foreground hover:bg-card/80 hover:text-foreground h-8 w-8 rounded-xl"
