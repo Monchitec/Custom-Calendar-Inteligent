@@ -7,7 +7,7 @@ import type {
 } from "@/types/theme";
 
 export const DEFAULT_THEME_CONFIG: ThemeConfig = {
-  preset: "rose",
+  preset: "ocean",
   mode: "light",
   density: "comfortable",
 };
@@ -16,7 +16,7 @@ export const THEME_PRESETS: ThemePresetMeta[] = [
   {
     id: "rose",
     name: "Rosado Armónico",
-    tagline: "Por defecto · Rosa, Salvia y Durazno",
+    tagline: "Rosa, Salvia y Durazno",
     description:
       "Tonos rosados suaves y elegantes equilibrados con acentos salvia y durazno para lectura cómoda todo el día.",
   },
@@ -30,7 +30,7 @@ export const THEME_PRESETS: ThemePresetMeta[] = [
   {
     id: "ocean",
     name: "Océano Sereno",
-    tagline: "Azul océano, Turquesa y Coral",
+    tagline: "Por defecto · Azul océano, Turquesa y Coral",
     description:
       "Fresco, nítido y de alto enfoque con complementarios cálidos en coral.",
   },
